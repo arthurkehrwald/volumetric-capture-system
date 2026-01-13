@@ -14,8 +14,7 @@ import datetime
 
 from picamera2 import Picamera2, Preview
 from picamera2.encoders import H264Encoder
-from picamera2.outputs import FileOutput
-from libcamera import controls as libcontrols
+from utilscamera import controls as libcontrols
 
 EVENT_LOG = 'event_log.txt'
 STORAGE_PATH = 'Recordings'

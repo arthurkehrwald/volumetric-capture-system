@@ -10,8 +10,8 @@ import threading
 import queue
 import time
 import logging
-from lib import config as cfg
-from lib import ssh_utils as su
+from utils import config as cfg
+from utils import ssh_utils as su
 
 cpu_cores = os.cpu_count()
 MAX_NORMAL_WORKERS = cpu_cores * 2

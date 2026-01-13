@@ -8,8 +8,8 @@ import hashlib
 import zmq
 import pygame
 from enum import Enum
-from lib import config as cfg
-from lib import ssh_utils as su
+from utils import config as cfg
+from utils import ssh_utils as su
 
 EVENT_LOG = 'event_log_master.txt'
 MASTER_PC_IP = '0.0.0.0'

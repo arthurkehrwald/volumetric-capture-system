@@ -12,8 +12,8 @@ import subprocess
 import shutil
 import sys
 import zmq
-from lib import config as cfg
-from lib import ssh_utils as su
+from utils import config as cfg
+from utils import ssh_utils as su
 
 OFFLINE_MODE = False
 if len(sys.argv) > 1 and sys.argv[1].lower() == "offline":

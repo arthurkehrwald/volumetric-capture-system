@@ -7,7 +7,7 @@ import cv2
 import time
 import psutil 
 import atexit
-from libcamera import controls as libcontrols
+from utilscamera import controls as libcontrols
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
