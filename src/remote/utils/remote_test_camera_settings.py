@@ -1,7 +1,6 @@
 from picamera2 import Picamera2
-from utilscamera import controls
+from libcamera import controls
 import time
-import socket
 
 # Initialize the camera
 picam2 = Picamera2()

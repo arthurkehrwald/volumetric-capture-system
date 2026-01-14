@@ -7,20 +7,10 @@ import cv2
 import time
 import psutil 
 import atexit
-from utilscamera import controls as libcontrols
-
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger(__name__)
+from libcamera import controls as libcontrols
 
 app = Flask(__name__)
 
-try:
-    picam2 = Picamera2()
-except Exception as e:
-    logger.error(f"Failed to initialize Picamera2: {e}")
-    exit(1)
 
 def cleanup():
     try:
@@ -29,36 +19,6 @@ def cleanup():
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
-atexit.register(cleanup)
-
-default_settings = {
-    "width": 1920,
-    "height": 1080,
-    "frame_rate": 25,
-    "shutter_angle": 20,
-    "iso": 864,
-    "brightness": 0,
-    "contrast": 100,
-    "saturation": 95,
-    "sharpness": 129,
-    "auto_exposure": False,
-    "flicker_control": "Off",
-    "flicker_period": 50,
-    "white_balance": "Auto",
-    "red_gain": 1.1,
-    "blue_gain": 2.5,
-    "af_mode": "manual",
-    "lens_position": 0.58
-}
-
-if os.path.exists('camera_settings.json'):
-    try:
-        with open('camera_settings.json', 'r') as f:
-            saved_settings = json.load(f)
-            default_settings.update(saved_settings)
-            logger.debug("Loaded settings from camera_settings.json")
-    except Exception as e:
-        logger.error(f"Failed to load camera_settings.json: {e}")
 
 def apply_settings(settings):
     controls = {}
@@ -148,10 +108,8 @@ def configure_camera():
         logger.error(f"Failed to configure and start camera: {e}")
         exit(1)
 
-configure_camera()
-logger.info("Camera successfully configured and started.")
 
-@app.route('/controls', methods=['POST'])
+@app.route("/controls", methods=["POST"])
 def update_controls_route():
     try:
         settings = request.json
@@ -230,7 +188,54 @@ def status_route():
         logger.error(f"Error in /status endpoint: {e}")
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+
+    try:
+        picam2 = Picamera2()
+    except Exception as e:
+        logger.error(f"Failed to initialize Picamera2: {e}")
+        exit(1)
+
+    atexit.register(cleanup)
+
+    default_settings = {
+        "width": 1920,
+        "height": 1080,
+        "frame_rate": 25,
+        "shutter_angle": 20,
+        "iso": 864,
+        "brightness": 0,
+        "contrast": 100,
+        "saturation": 95,
+        "sharpness": 129,
+        "auto_exposure": False,
+        "flicker_control": "Off",
+        "flicker_period": 50,
+        "white_balance": "Auto",
+        "red_gain": 1.1,
+        "blue_gain": 2.5,
+        "af_mode": "manual",
+        "lens_position": 0.58,
+    }
+
+    if os.path.exists("camera_settings.json"):
+        try:
+            with open("camera_settings.json", "r") as f:
+                saved_settings = json.load(f)
+                default_settings.update(saved_settings)
+                logger.debug("Loaded settings from camera_settings.json")
+        except Exception as e:
+            logger.error(f"Failed to load camera_settings.json: {e}")
+
+    configure_camera()
+    logger.info("Camera successfully configured and started.")
     logger.info("Starting Flask server...")
     try:
         app.run(host='0.0.0.0', port=5000, threaded=True, debug=False, use_reloader=False)
