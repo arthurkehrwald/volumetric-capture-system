@@ -117,13 +117,13 @@ def timed_out(timeout_time: float | None) -> bool:
 
 
 def take_photo(
-    picam2: Picamera2, lens_pos: float, timeout_time: float | None
+    running_picam: Picamera2, lens_pos: float, timeout_time: float | None
 ) -> np.ndarray:
-    with picam2.controls as ctrl:
+    with running_picam.controls as ctrl:
         ctrl.AfMode = controls.AfModeEnum.Manual
         ctrl.LensPosition = lens_pos
-    wait_for_lens_pos(lens_pos, picam2, timeout_time)
-    array = picam2.capture_array("main")
+    wait_for_lens_pos(lens_pos, running_picam, timeout_time)
+    array = running_picam.capture_array("main")
     return array
 
 
@@ -132,7 +132,7 @@ class FocusImg(typing.NamedTuple):
     lens_pos: float
 
 
-def record_focus_seq(
+def record_focus_series(
     num_photos: int, timeout_time: float | None
 ) -> typing.List[FocusImg]:
     """
@@ -145,18 +145,15 @@ def record_focus_seq(
     :return: List of images with associated lens positions
     :rtype: List[FocusImg]
     """
-    picam2 = Picamera2()
-    picam2.configure(picam2.create_still_configuration())
-    picam2.start()
-    try:
+    with Picamera2() as picam:
+        picam.configure(picam.create_still_configuration())
+        picam.start()
         seq = []
         for i in range(num_photos):
             MAX_LENS_POS = 2  # 50cm focus dist
             lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-            photo = take_photo(picam2, lens_pos, timeout_time)
+            photo = take_photo(picam, lens_pos, timeout_time)
             seq.append(FocusImg(photo, lens_pos))
-    finally:
-        picam2.stop()
 
 
 app = Flask(__name__)
@@ -166,7 +163,7 @@ app = Flask(__name__)
 def autofocus():
     start_time = time.time()
     try:
-        seq = record_focus_seq(20, time.time() + 5)
+        seq = record_focus_series(20, time.time() + 5)
     except Exception as e:
         return str(e)
     passed = time.time() - start_time
