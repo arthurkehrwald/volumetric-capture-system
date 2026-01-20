@@ -8,11 +8,12 @@ cropped image.
 """
 
 from flask import Flask
-from picamera2 import Picamera2
+from picamera2 import Picamera2, Metadata
 import time
 import numpy as np
 import typing
 import cv2 as cv
+from libcamera import controls
 
 
 class Point(typing.NamedTuple):
@@ -98,14 +99,62 @@ def rate_image_focus(img: np.ndarray) -> int:
     return rate_marker_sharpness(crop)
 
 
-def take_photo() -> np.ndarray:
+def wait_for_lens_pos(
+    lens_pos: float, running_picam: Picamera2, timeout_time: None | float
+):
+    while not timed_out(timeout_time):
+        metadata = Metadata(
+            running_picam.capture_metadata()
+        )  # Blocks until frame arrives
+        print(abs(metadata.LensPosition - lens_pos))
+        if abs(metadata.LensPosition - lens_pos) < 0.01:
+            return
+    raise TimeoutError()
+
+
+def timed_out(timeout_time: float | None) -> bool:
+    return timeout_time is not None and time.time() > timeout_time
+
+
+def take_photo(
+    picam2: Picamera2, lens_pos: float, timeout_time: float | None
+) -> np.ndarray:
+    with picam2.controls as ctrl:
+        ctrl.AfMode = controls.AfModeEnum.Manual
+        ctrl.LensPosition = lens_pos
+    wait_for_lens_pos(lens_pos, picam2, timeout_time)
+    array = picam2.capture_array("main")
+    return array
+
+
+class FocusImg(typing.NamedTuple):
+    image: np.ndarray
+    lens_pos: float
+
+
+def record_focus_seq(
+    num_photos: int, timeout_time: float | None
+) -> typing.List[FocusImg]:
+    """
+    Takes a specified number of photos with different lens positions.
+
+    :param num_photos: Number of photos
+    :type num_photos: int
+    :param timeout_time: Optional timestamp in seconds since epoch until function must finish
+    :type timeout_time: float | None
+    :return: List of images with associated lens positions
+    :rtype: List[FocusImg]
+    """
     picam2 = Picamera2()
     picam2.configure(picam2.create_still_configuration())
     picam2.start()
     try:
-        time.sleep(1)
-        array = picam2.capture_array("main")
-        return array
+        seq = []
+        for i in range(num_photos):
+            MAX_LENS_POS = 2  # 50cm focus dist
+            lens_pos = MAX_LENS_POS * i / (num_photos - 1)
+            photo = take_photo(picam2, lens_pos, timeout_time)
+            seq.append(FocusImg(photo, lens_pos))
     finally:
         picam2.stop()
 
@@ -113,11 +162,15 @@ def take_photo() -> np.ndarray:
 app = Flask(__name__)
 
 
-@app.route("/rate-sharpness", methods=["GET"])
-def rate_sharpness_route():
-    photo = take_photo()
-    focus = rate_image_focus(photo)
-    return str(focus)
+@app.route("/autofocus", methods=["GET"])
+def autofocus():
+    start_time = time.time()
+    try:
+        seq = record_focus_seq(20, time.time() + 5)
+    except Exception as e:
+        return str(e)
+    passed = time.time() - start_time
+    return str(passed)
 
 
 if __name__ == "__main__":
