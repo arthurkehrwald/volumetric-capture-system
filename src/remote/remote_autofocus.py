@@ -123,9 +123,6 @@ class FocusImg(typing.NamedTuple):
     biggest_marker_detected: MarkerDetection
     lens_pos: float
     rating: float
-    biggest_marker_detected: MarkerDetection
-    lens_pos: float
-    rating: float
 
 
 def try_out_lens_pos(lens_pos: float, running_picam: Picamera2) -> FocusImg:
