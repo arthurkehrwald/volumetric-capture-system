@@ -102,10 +102,12 @@ def take_photo() -> np.ndarray:
     picam2 = Picamera2()
     picam2.configure(picam2.create_still_configuration())
     picam2.start()
-    time.sleep(1)
-    array = picam2.capture_array("main")
-    picam2.stop()
-    return array
+    try:
+        time.sleep(1)
+        array = picam2.capture_array("main")
+        return array
+    finally:
+        picam2.stop()
 
 
 app = Flask(__name__)
