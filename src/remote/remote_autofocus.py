@@ -99,30 +99,21 @@ def rate_image_focus(img: np.ndarray) -> int:
     return rate_marker_sharpness(crop)
 
 
-def wait_for_lens_pos(
-    lens_pos: float, running_picam: Picamera2, timeout_time: None | float
-):
-    while not timed_out(timeout_time):
+def wait_for_lens_pos(lens_pos: float, running_picam: Picamera2, timeout: float):
+    start_time = time.time()
+    while start_time - time.time() < timeout:
         metadata = Metadata(
             running_picam.capture_metadata()
         )  # Blocks until frame arrives
-        print(abs(metadata.LensPosition - lens_pos))
         if abs(metadata.LensPosition - lens_pos) < 0.01:
             return
-    raise TimeoutError()
 
 
-def timed_out(timeout_time: float | None) -> bool:
-    return timeout_time is not None and time.time() > timeout_time
-
-
-def take_photo(
-    running_picam: Picamera2, lens_pos: float, timeout_time: float | None
-) -> np.ndarray:
+def take_photo(running_picam: Picamera2, lens_pos: float) -> np.ndarray:
     with running_picam.controls as ctrl:
         ctrl.AfMode = controls.AfModeEnum.Manual
         ctrl.LensPosition = lens_pos
-    wait_for_lens_pos(lens_pos, running_picam, timeout_time)
+    wait_for_lens_pos(lens_pos, running_picam, timeout=1.5)
     array = running_picam.capture_array("main")
     return array
 
@@ -132,9 +123,7 @@ class FocusImg(typing.NamedTuple):
     lens_pos: float
 
 
-def record_focus_series(
-    num_photos: int, timeout_time: float | None
-) -> typing.List[FocusImg]:
+def record_focus_series(num_photos: int) -> typing.List[FocusImg]:
     """
     Takes a specified number of photos with different lens positions.
 
@@ -152,7 +141,7 @@ def record_focus_series(
         for i in range(num_photos):
             MAX_LENS_POS = 2  # 50cm focus dist
             lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-            photo = take_photo(picam, lens_pos, timeout_time)
+            photo = take_photo(picam, lens_pos)
             seq.append(FocusImg(photo, lens_pos))
 
 
@@ -163,11 +152,11 @@ app = Flask(__name__)
 def autofocus():
     start_time = time.time()
     try:
-        seq = record_focus_series(20, time.time() + 5)
+        seq = record_focus_series(5)
     except Exception as e:
-        return str(e)
+        return "exception:" + str(e)
     passed = time.time() - start_time
-    return str(passed)
+    return "time: " + str(passed)
 
 
 if __name__ == "__main__":

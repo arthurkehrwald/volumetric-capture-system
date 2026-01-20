@@ -9,6 +9,6 @@ if __name__ == '__main__':
     time.sleep(1)
     launcher.start_script(IP, SCRIPT)
     time.sleep(1)
-    response = requests.get(f"http://{IP}:5000/autofocus", timeout=10)
+    response = requests.get(f"http://{IP}:5000/autofocus", timeout=30)
     print(response.content)
     launcher.stop_script(IP, SCRIPT)
