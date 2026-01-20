@@ -123,26 +123,28 @@ class FocusImg(typing.NamedTuple):
     lens_pos: float
 
 
-def record_focus_series(num_photos: int) -> typing.List[FocusImg]:
-    """
-    Takes a specified number of photos with different lens positions.
-
-    :param num_photos: Number of photos
-    :type num_photos: int
-    :param timeout_time: Optional timestamp in seconds since epoch until function must finish
-    :type timeout_time: float | None
-    :return: List of images with associated lens positions
-    :rtype: List[FocusImg]
-    """
+def find_ideal_lens_pos(iterations: int) -> float:
     with Picamera2() as picam:
         picam.configure(picam.create_still_configuration())
         picam.start()
-        seq = []
-        for i in range(num_photos):
-            MAX_LENS_POS = 2  # 50cm focus dist
-            lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-            photo = take_photo(picam, lens_pos)
-            seq.append(FocusImg(photo, lens_pos))
+        lower_lens_pos, upper_lens_pos = 0.0, 2.0
+        lower_rating = rate_image_focus(take_photo(picam, lower_lens_pos))
+        upper_rating = rate_image_focus(take_photo(picam, upper_lens_pos))
+
+        for _ in range(iterations):
+            mid_lens_pos = (lower_lens_pos + upper_lens_pos) / 2
+            mid_rating = rate_image_focus(take_photo(picam, mid_lens_pos))
+
+            if lower_rating > upper_rating:
+                upper_lens_pos = mid_lens_pos
+                upper_rating = mid_rating
+                print(f"Lower rating {lower_rating} > Upper rating {upper_rating}")
+            else:
+                lower_lens_pos = mid_lens_pos
+                lower_rating = mid_rating
+                print(f"Lower rating {lower_rating} < Upper rating {upper_rating}")
+
+        return mid_lens_pos
 
 
 app = Flask(__name__)
@@ -150,13 +152,7 @@ app = Flask(__name__)
 
 @app.route("/autofocus", methods=["GET"])
 def autofocus():
-    start_time = time.time()
-    try:
-        seq = record_focus_series(5)
-    except Exception as e:
-        return "exception:" + str(e)
-    passed = time.time() - start_time
-    return "time: " + str(passed)
+    return str(find_ideal_lens_pos(5))
 
 
 if __name__ == "__main__":
