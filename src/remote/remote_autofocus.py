@@ -7,7 +7,7 @@ and cropped out. The sharpness is rated using the Laplacian variance of that
 cropped image.
 """
 
-from flask import Flask
+from flask import Flask, jsonify
 from picamera2 import Picamera2, Metadata
 import time
 import numpy as np
@@ -181,7 +181,7 @@ def autofocus():
         picam.start()
         lower, upper = find_lens_pos_bounds(picam, num_photos=5)
         ideal = find_ideal_lens_pos(picam, lower, upper, iterations=5)
-    return str(ideal)
+    return jsonify("lens_position", ideal), 200
 
 
 if __name__ == "__main__":
