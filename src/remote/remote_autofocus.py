@@ -181,7 +181,7 @@ def autofocus():
         picam.start()
         lower, upper = find_lens_pos_bounds(picam, num_photos=5)
         ideal = find_ideal_lens_pos(picam, lower, upper, iterations=5)
-    return jsonify("lens_position", ideal), 200
+    return jsonify({"lens_position", ideal}), 200
 
 
 if __name__ == "__main__":
