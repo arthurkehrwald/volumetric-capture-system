@@ -122,14 +122,19 @@ def take_photo(running_picam: Picamera2, lens_pos: float) -> np.ndarray:
     return array
 
 
-class FocusImg(typing.NamedTuple):
-    photo: np.ndarray
-    biggest_marker_detected: MarkerDetection
+class FocusRating(typing.NamedTuple):
     lens_pos: float
     rating: float
 
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, FocusRating)
+            and self.lens_pos == other.lens_pos
+            and self.rating == other.rating
+        )
 
-def try_out_lens_pos(lens_pos: float, running_picam: Picamera2) -> FocusImg:
+
+def rate_lens_pos(lens_pos: float, running_picam: Picamera2) -> int:
     photo = take_photo(running_picam, lens_pos)
     marker = find_best_test_marker(photo)
     if marker is not None:
@@ -137,40 +142,37 @@ def try_out_lens_pos(lens_pos: float, running_picam: Picamera2) -> FocusImg:
         rating = rate_marker_sharpness(crop)
     else:
         rating = 0
-    return FocusImg(photo, marker, lens_pos, rating)
+    return rating
 
 
 def find_ideal_lens_pos(
     running_picam: Picamera2,
-    lower_bound: FocusImg,
-    upper_bound: FocusImg,
+    lower_bound: FocusRating,
+    upper_bound: FocusRating,
     iterations: int,
-) -> float:
-    if lower_bound.rating == upper_bound.rating:
-        raise ValueError(
-            "Ratings for upper and lower bound lens positions cannot be the same."
-        )
+) -> FocusRating:
     for _ in range(iterations):
         mid_lens_pos = (lower_bound.lens_pos + upper_bound.lens_pos) / 2
-        mid = try_out_lens_pos(mid_lens_pos, running_picam)
+        mid_rating = rate_lens_pos(mid_lens_pos, running_picam)
+        mid = FocusRating(mid_lens_pos, mid_rating)
 
         if lower_bound.rating > upper_bound.rating:
             upper_bound = mid
         else:
             lower_bound = mid
 
-    return mid_lens_pos
+    return mid
 
 
 def find_lens_pos_bounds(
     running_picam: Picamera2, num_photos: int
-) -> typing.Tuple[FocusImg, FocusImg]:
+) -> typing.Tuple[FocusRating, FocusRating]:
     seq = []
     for i in range(num_photos):
         MAX_LENS_POS = 2  # 50cm focus dist
         lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-        candidate = try_out_lens_pos(lens_pos, running_picam)
-        seq.append(candidate)
+        rating = rate_lens_pos(lens_pos, running_picam)
+        seq.append(FocusRating(lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
     return seq[0], seq[1]
 
@@ -178,15 +180,28 @@ def find_lens_pos_bounds(
 app = Flask(__name__)
 
 
-@app.route("/autofocus", methods=["GET"])
-def autofocus():
-    with Picamera2() as picam:
-        picam.configure(picam.create_still_configuration())
-        picam.start()
-        lower, upper = find_lens_pos_bounds(picam, num_photos=5)
-        ideal = find_ideal_lens_pos(picam, lower, upper, iterations=5)
-    return jsonify({"lens_position", ideal}), 200
+@app.route("/rate-lens-pos/<float:lens_pos>")
+def rate_lens_pos_route(lens_pos: float):
+    rating = rate_lens_pos(lens_pos, PICAM)
+    return jsonify({"rating": rating})
+
+
+@app.route("/autofocus")
+def autofocus_route():
+    lower, upper = find_lens_pos_bounds(PICAM, num_photos=5)
+    ideal = find_ideal_lens_pos(PICAM, lower, upper, iterations=5)
+    return jsonify(
+        {
+            "lens_pos": ideal.lens_pos,
+            "rating": ideal.rating,
+        }
+    )
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, threaded=True, debug=False, use_reloader=False)
+    with Picamera2() as PICAM:
+        PICAM.configure(PICAM.create_still_configuration())
+        PICAM.start()
+        app.run(
+            host="0.0.0.0", port=5000, threaded=True, debug=False, use_reloader=False
+        )
