@@ -12,6 +12,8 @@ import time
 import logging
 from utils import config as cfg
 from utils import ssh_utils as su
+from master_autofocus import Autofocus
+
 
 cpu_cores = os.cpu_count()
 MAX_NORMAL_WORKERS = cpu_cores * 2
@@ -147,6 +149,8 @@ class MasterCameraController:
         self.bandwidth = 0
         self.cpu_usage = 0
 
+        self.autofocus = Autofocus()
+
         self.create_gui()
         
         su.start_remote_hosts(self.root, su.RemoteScript.CAMERACONTROLLER)
@@ -169,9 +173,16 @@ class MasterCameraController:
             self.start_video_stream()
 
     def create_gui(self):
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        notebook = ttk.Notebook(self.root)
+        settings_tab = ttk.Frame(notebook)
+        self.create_settings_gui(settings_tab)
+        notebook.add(settings_tab, text="Manual Settings")
+        autofocus_tab = ttk.Frame(notebook)
+        self.autofocus.create_gui(autofocus_tab)
+        notebook.add(autofocus_tab, text="Autofocus")
+        notebook.pack(fill="both", expand=True)
 
+    def create_settings_gui(self, main_frame: ttk.Widget):
         main_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=2)
         main_frame.rowconfigure(1, weight=1)
