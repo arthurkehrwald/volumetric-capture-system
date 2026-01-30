@@ -15,7 +15,7 @@ class PerCamInfo:
     online: bool
     focus_rating: int
     prev_rating: int
-    focus_distance: float
+    lens_pos: float
     prev_distance: float
 
 
@@ -33,7 +33,7 @@ class Autofocus:
                 online=False,
                 focus_rating=0,
                 prev_rating=0,
-                focus_distance=1.0 / cam.get("lens_position", 0.0),
+                lens_pos=cam["lens_position"],
                 prev_distance=0.0,
             )
             for cam in cams
@@ -44,9 +44,9 @@ class Autofocus:
             "Camera",
             "Status",
             "Focus Rating",
-            "Previous Rating",
-            "Focus Distance",
-            "Previous Distance",
+            "Prev. Focus Rating",
+            "Focus Distance (m)",
+            "Prev. Focus Distance (m)",
             "Focus",
             "Verify",
         )
@@ -81,7 +81,7 @@ class Autofocus:
             "Online" if info.online else "Offline",
             str(info.focus_rating),
             str(info.prev_rating),
-            f"{info.focus_distance:.2f}",
+            f"{(1 / info.lens_pos):.2f}" if info.lens_pos > .1 else "∞",
             f"{info.prev_distance:.2f}",
             "Click!",
             "Click!",
