@@ -519,6 +519,7 @@ class MasterCameraController:
         self.root.after(1000, self.update_metrics)
 
     def on_closing(self):
+        self.autofocus.on_closing()
         self.stop_event.set()
         if self.video_thread and self.video_thread.is_alive():
             self.video_thread.join(timeout=1)

@@ -8,6 +8,7 @@ import time
 import psutil 
 import atexit
 from libcamera import controls as libcontrols
+import remote_autofocus as autofocus
 
 app = Flask(__name__)
 
@@ -187,6 +188,29 @@ def status_route():
     except Exception as e:
         logger.error(f"Error in /status endpoint: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/rate-lens-pos/<float:lens_pos>")
+def rate_lens_pos_route(lens_pos: float):
+    rating = autofocus.rate_lens_pos(lens_pos, picam2)
+    return jsonify({"rating": rating})
+
+
+@app.route("/autofocus")
+def autofocus_route():
+    lower, upper = autofocus.find_lens_pos_bounds(picam2, num_photos=5)
+    ideal = autofocus.find_ideal_lens_pos(picam2, lower, upper, iterations=5)
+    return jsonify(
+        {
+            "lens_pos": ideal.lens_pos,
+            "rating": ideal.rating,
+        }
+    )
+
+
+@app.route("/ping")
+def ping_route():
+    return '', 200
 
 
 if __name__ == "__main__":

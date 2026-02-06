@@ -175,33 +175,3 @@ def find_lens_pos_bounds(
         seq.append(FocusRating(lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
     return seq[0], seq[1]
-
-
-app = Flask(__name__)
-
-
-@app.route("/rate-lens-pos/<float:lens_pos>")
-def rate_lens_pos_route(lens_pos: float):
-    rating = rate_lens_pos(lens_pos, PICAM)
-    return jsonify({"rating": rating})
-
-
-@app.route("/autofocus")
-def autofocus_route():
-    lower, upper = find_lens_pos_bounds(PICAM, num_photos=5)
-    ideal = find_ideal_lens_pos(PICAM, lower, upper, iterations=5)
-    return jsonify(
-        {
-            "lens_pos": ideal.lens_pos,
-            "rating": ideal.rating,
-        }
-    )
-
-
-if __name__ == "__main__":
-    with Picamera2() as PICAM:
-        PICAM.configure(PICAM.create_still_configuration())
-        PICAM.start()
-        app.run(
-            host="0.0.0.0", port=5000, threaded=True, debug=False, use_reloader=False
-        )
