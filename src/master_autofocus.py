@@ -87,19 +87,19 @@ class Autofocus:
         columns = (
             "Camera",
             "Status",
+            "Message",
             "Focus Rating",
             "Prev. Focus Rating",
             "Focus Distance (m)",
             "Prev. Focus Distance (m)",
-            "Message",
         )
         table = ttk.Treeview(widget, columns=columns, show="headings")
         for col in columns:
             table.heading(col, text=col)
-        table.column(2, anchor="e")
         table.column(3, anchor="e")
         table.column(4, anchor="e")
         table.column(5, anchor="e")
+        table.column(6, anchor="e")
         table.tag_configure("offline", foreground="gray")
         table.grid(row=0, column=0, sticky="nsew")
         widget.rowconfigure(0, weight=1)
@@ -168,11 +168,11 @@ class Autofocus:
         return (
             cam.name,
             "Connected" if cam.connected else "Not Connected",
+            cam.message,
             self.focus_rating_to_display_value(cam.focus_rating),
             self.focus_rating_to_display_value(cam.prev_rating),
             self.lens_pos_to_focus_dist_str(cam.lens_pos),
             self.lens_pos_to_focus_dist_str(cam.prev_lens_pos),
-            cam.message,
         )
 
     def on_focus_all_clicked(self, table: ttk.Treeview):
