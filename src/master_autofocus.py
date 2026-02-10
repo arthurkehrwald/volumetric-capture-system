@@ -20,7 +20,7 @@ class CamInfo:
     focus_rating: int
     prev_rating: int
     lens_pos: float
-    prev_distance: float
+    prev_lens_pos: float
     message: str
 
 
@@ -74,7 +74,7 @@ class Autofocus:
                 focus_rating=0,
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
-                prev_distance=0.0,
+                prev_lens_pos=0.0,
                 message="",
             )
             for cam in cams
@@ -85,8 +85,8 @@ class Autofocus:
             "Camera",
             "Status",
             "Focus Rating",
-            "Focus Distance (m)",
             "Prev. Focus Rating",
+            "Focus Distance (m)",
             "Prev. Focus Distance (m)",
             "Message",
         )
@@ -148,11 +148,14 @@ class Autofocus:
             cam.name,
             "Connected" if cam.connected else "Not Connected",
             str(cam.focus_rating),
-            f"{(1 / cam.lens_pos):.2f}" if cam.lens_pos > 0.1 else "∞",
-            f"{cam.prev_distance:.2f}",
             str(cam.prev_rating),
+            self.lens_pos_to_focus_dist_str(cam.lens_pos),
+            self.lens_pos_to_focus_dist_str(cam.prev_lens_pos),
             cam.message,
         )
+
+    def lens_pos_to_focus_dist_str(self, lens_pos: float) -> str:
+        return f"{(1 / lens_pos):.2f}" if lens_pos > 0.1 else "∞"
 
     def update_table_row(self, table: ttk.Treeview, info: CamInfo, index: int):
         item = table.get_children()[index]
@@ -282,6 +285,8 @@ class Autofocus:
         lens_pos = response["lens_pos"]
         rating = response["rating"]
         with self.cam_info_lock:
+            cam.prev_rating = cam.focus_rating
+            cam.prev_lens_pos = cam.lens_pos
             cam.focus_rating = rating
             cam.lens_pos = lens_pos
             cam.message = (
