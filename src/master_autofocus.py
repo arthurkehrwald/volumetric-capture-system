@@ -138,7 +138,7 @@ class Autofocus:
         scrollbar.grid(row=0, column=1, sticky="ns")
         table.configure(yscroll=scrollbar.set)
 
-        bottom_btns = tk.Frame(widget)
+        bottom_btns = tk.Frame(widget, bg="#ebebeb")
         focus_all_btn = ttk.Button(
             bottom_btns,
             text="Focus All",
@@ -155,9 +155,10 @@ class Autofocus:
             command=lambda: self.on_verify_selected_clicked(table),
         )
         bottom_btns.grid(row=1, column=0, columnspan=2, sticky="ew")
-        focus_all_btn.pack(side="left", fill="both", expand=True, padx=2)
-        focus_selected_btn.pack(side="left", fill="both", expand=True, padx=2)
-        verify_selected_btn.pack(side="left", fill="both", expand=True, padx=2)
+        padding = 4
+        focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
+        focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
+        verify_selected_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
