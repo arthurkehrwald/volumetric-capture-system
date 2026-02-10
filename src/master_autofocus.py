@@ -31,7 +31,7 @@ class Autofocus:
         with self.cam_info_lock:
             self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
         self.check_cams_online_thread = threading.Thread(
-            target=lambda: asyncio.run(self.check_cams_online_loop()), daemon=True
+            target=lambda: asyncio.run(self.check_cams_connection()), daemon=True
         )
         self.check_cams_online_thread.start()
         self.thread_pool = ThreadPoolExecutor()
@@ -41,6 +41,16 @@ class Autofocus:
             self.shutdown_event,
             self.check_cams_online_thread,
             self.thread_pool,
+        )
+        self.thread_pool.submit(
+            lambda: asyncio.run(
+                self.request_from_cameras(
+                    self.cameras,
+                    self.build_rate_lens_pos_response,
+                    self.handle_rate_lens_pos_response,
+                    "Focus rating",
+                )
+            )
         )
 
     @staticmethod
@@ -159,7 +169,16 @@ class Autofocus:
     def on_focus_selected_clicked(self, table: ttk.Treeview):
         """Callback when Focus Selected button is clicked"""
         selected = self.get_selected_cams(table)
-        self.thread_pool.submit(lambda: asyncio.run(self.autofocus_cams(selected)))
+        self.thread_pool.submit(
+            lambda: asyncio.run(
+                self.request_from_cameras(
+                    selected,
+                    self.build_autofocus_url,
+                    self.handle_autofocus_response,
+                    "Autofocus",
+                )
+            )
+        )
 
     def on_verify_selected_clicked(self):
         """Callback when Verify button is clicked"""
@@ -171,10 +190,15 @@ class Autofocus:
         with self.cam_info_lock:
             return [cam for cam in self.cameras if cam.name in selected_ips]
 
-    def get_endpoint(self, ip: str, route: str) -> str:
-        return f"http://{ip}:5000/{route}"
+    def get_endpoint(
+        self, ip: str, route: str, variable: typing.Optional[str] = None
+    ) -> str:
+        endpoint = f"http://{ip}:5000/{route}"
+        return endpoint if variable is None else endpoint + "/" + variable
 
-    async def check_cam_online(self, session: aiohttp.ClientSession, ip: str) -> bool:
+    async def check_cam_connection(
+        self, session: aiohttp.ClientSession, ip: str
+    ) -> bool:
         endpoint = self.get_endpoint(ip, "ping")
         try:
             async with session.get(endpoint, timeout=1) as response:
@@ -185,12 +209,15 @@ class Autofocus:
             print(f"Unknown exception while pinging camera: {e}")
             return False
 
-    async def check_cams_online_loop(self):
+    async def check_cams_connection(self):
         async with aiohttp.ClientSession() as session:
             while not self.shutdown_event.is_set():
                 async with asyncio.TaskGroup() as tg:
                     tasks = [
-                        (cam, tg.create_task(self.check_cam_online(session, cam.ip)))
+                        (
+                            cam,
+                            tg.create_task(self.check_cam_connection(session, cam.ip)),
+                        )
                         for cam in self.cameras
                     ]
 
@@ -198,39 +225,80 @@ class Autofocus:
                     for cam, task in tasks:
                         cam.connected = task.result()
 
-    async def autofocus_cam(self, session: aiohttp.ClientSession, cam: CamInfo):
-        with self.cam_info_lock:
-            cam.message = "Autofocus in progress..."
-        endpoint = self.get_endpoint(cam.ip, "autofocus")
-        try:
-            async with session.get(endpoint, timeout=10) as response:
-                json = await response.json()
-                lens_pos = json["lens_pos"]
-                rating = json["rating"]
-                with self.cam_info_lock:
-                    cam.focus_rating = rating
-                    cam.lens_pos = lens_pos
-                    cam.message = (
-                        "Autofocus completed successfully."
-                        if rating != 0
-                        else "Autofocus failed: No markers recognized"
-                    )
-        except TimeoutError:
-            with self.cam_info_lock:
-                cam.message = "Autofocus failed: No connection"
-        except aiohttp.ClientConnectionError:
-            with self.cam_info_lock:
-                cam.message = "Autofocus failed: Remote script not running"
-        except Exception as ex:
-            print(f"Unknown exception during autofocus: {ex}")
-            with self.cam_info_lock:
-                cam.message = "Autofocus failed: Unknown reason"
-
-    async def autofocus_cams(self, cams: typing.List[CamInfo]):
+    async def request_from_cameras(
+        self,
+        cams: typing.List[CamInfo],
+        url_builder: typing.Callable[[CamInfo], str],
+        response_handler: typing.Callable[[typing.Dict, CamInfo], None],
+        action_name: str,
+    ):
         async with aiohttp.ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
                 for cam in cams:
-                    tg.create_task(self.autofocus_cam(session, cam))
+                    tg.create_task(
+                        self.request_from_camera(
+                            session, cam, url_builder, response_handler, action_name
+                        )
+                    )
+
+    async def request_from_camera(
+        self,
+        session: aiohttp.ClientSession,
+        cam: CamInfo,
+        url_builder: typing.Callable[[CamInfo], str],
+        response_handler: typing.Callable[[typing.Dict, CamInfo], None],
+        action_name: str,
+    ):
+        with self.cam_info_lock:
+            cam.message = f"{action_name} in progress..."
+        endpoint = url_builder(cam)
+        try:
+            async with session.get(endpoint, timeout=10) as response:
+                json = await response.json()
+                response_handler(json, cam)
+        except TimeoutError:
+            with self.cam_info_lock:
+                cam.message = f"{action_name} failed: No connection"
+        except aiohttp.ClientConnectionError:
+            with self.cam_info_lock:
+                cam.message = f"{action_name} failed: Remote script not running"
+        except (aiohttp.ContentTypeError, KeyError):
+            with self.cam_info_lock:
+                cam.message = (
+                    f"{action_name} failed: Malformed response (Version mismatch?)"
+                )
+        except Exception as ex:
+            print(f"Unknown exception during {action_name}: {ex}")
+            with self.cam_info_lock:
+                cam.message = f"{action_name} failed: Unknown reason"
+
+    def build_autofocus_url(self, cam: CamInfo) -> str:
+        return self.get_endpoint(cam.ip, "autofocus")
+
+    def build_rate_lens_pos_response(self, cam: CamInfo) -> str:
+        return self.get_endpoint(cam.ip, "rate-lens-pos", str(cam.lens_pos))
+
+    def handle_autofocus_response(self, response: typing.Dict, cam: CamInfo):
+        lens_pos = response["lens_pos"]
+        rating = response["rating"]
+        with self.cam_info_lock:
+            cam.focus_rating = rating
+            cam.lens_pos = lens_pos
+            cam.message = (
+                "Autofocus completed successfully."
+                if rating != 0
+                else "Autofocus failed: No markers recognized"
+            )
+
+    def handle_rate_lens_pos_response(self, response: typing.Dict, cam: CamInfo):
+        rating = response["rating"]
+        with self.cam_info_lock:
+            cam.focus_rating = rating
+            cam.message = (
+                "Focus rating completed successfully."
+                if rating != 0
+                else "Focus rating failed: No markers recognized"
+            )
 
 
 def store_lens_pos(ip: str, lens_pos: float):
