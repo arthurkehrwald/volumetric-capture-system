@@ -224,7 +224,7 @@ class Autofocus:
         except Exception as ex:
             print(f"Unknown exception during autofocus: {ex}")
             with self.cam_info_lock:
-                cam.message = "Aufocus failed: Unknown reason"
+                cam.message = "Autofocus failed: Unknown reason"
 
     async def autofocus_cams(self, cams: typing.List[CamInfo]):
         async with aiohttp.ClientSession() as session:
