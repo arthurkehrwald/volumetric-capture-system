@@ -16,11 +16,12 @@ from tkinter import ttk
 class PerCamInfo:
     name: str
     ip: str
-    online: bool
+    connected: bool
     focus_rating: int
     prev_rating: int
     lens_pos: float
     prev_distance: float
+    message: str
 
 
 class Autofocus:
@@ -61,11 +62,12 @@ class Autofocus:
             PerCamInfo(
                 name=cam["name"],
                 ip=cam["ip"],
-                online=False,
+                connected=False,
                 focus_rating=0,
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
                 prev_distance=0.0,
+                message="",
             )
             for cam in cams
         ]
@@ -78,7 +80,7 @@ class Autofocus:
             "Focus Distance (m)",
             "Prev. Focus Rating",
             "Prev. Focus Distance (m)",
-            "Message"
+            "Message",
         )
         table = ttk.Treeview(widget, columns=columns, show="headings")
         for col in columns:
@@ -136,12 +138,12 @@ class Autofocus:
     def get_table_values(self, info: PerCamInfo) -> typing.Tuple[str]:
         return (
             info.name,
-            "Online" if info.online else "Offline",
+            "Connected" if info.connected else "Not Connected",
             str(info.focus_rating),
             f"{(1 / info.lens_pos):.2f}" if info.lens_pos > 0.1 else "∞",
             f"{info.prev_distance:.2f}",
             str(info.prev_rating),
-            ""
+            info.message,
         )
 
     def update_table_row(self, table: ttk.Treeview, info: PerCamInfo, index: int):
@@ -149,7 +151,7 @@ class Autofocus:
         table.item(
             item,
             values=self.get_table_values(info),
-            tags=() if info.online else ("offline",),
+            tags=() if info.connected else ("offline",),
         )
 
     def on_focus_all_clicked(self, table: ttk.Treeview):
@@ -181,6 +183,9 @@ class Autofocus:
                 return response.ok
         except TimeoutError:
             return False
+        except Exception as e:
+            print(f"Unknown exception while pinging camera: {e}")
+            return False
 
     async def check_cams_online_loop(self):
         async with aiohttp.ClientSession() as session:
@@ -193,9 +198,11 @@ class Autofocus:
 
                 with self.cam_info_lock:
                     for cam, task in tasks:
-                        cam.online = task.result()
+                        cam.connected = task.result()
 
     async def autofocus_cam(self, session: aiohttp.ClientSession, cam: PerCamInfo):
+        with self.cam_info_lock:
+            cam.message = "Autofocus in progress..."
         endpoint = self.get_endpoint(cam.ip, "autofocus")
         try:
             async with session.get(endpoint, timeout=10) as response:
@@ -205,8 +212,21 @@ class Autofocus:
                 with self.cam_info_lock:
                     cam.focus_rating = rating
                     cam.lens_pos = lens_pos
+                    cam.message = (
+                        "Autofocus completed successfully."
+                        if rating != 0
+                        else "Autofocus failed: No markers recognized"
+                    )
         except TimeoutError:
-            pass
+            with self.cam_info_lock:
+                cam.message = "Autofocus failed: No connection"
+        except aiohttp.ClientConnectionError:
+            with self.cam_info_lock:
+                cam.message = "Autofocus failed: Remote script not running"
+        except Exception as ex:
+            print(f"Unknown exception during autofocus: {ex}")
+            with self.cam_info_lock:
+                cam.message = "Aufocus failed: Unknown reason"
 
     async def autofocus_cams(self, cams: typing.List[PerCamInfo]):
         async with aiohttp.ClientSession() as session:
