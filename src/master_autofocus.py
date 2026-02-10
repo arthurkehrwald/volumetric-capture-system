@@ -14,11 +14,12 @@ from tkinter import ttk
 
 FOCUS_RATING_FOR_MAX_SCORE = 14000
 FOCUS_RATING_FOR_OK_SCORE = 6000
-FOCUS_RATING_FOR_LOW_SCORE = 3000
-GOOD_FOCUS_TAG = "goof_focucs"
-OK_FOCUS_TAG = "ok_focus"
-BAD_FOCUS_TAG = "bad_focus"
-NOT_CONNECTED_TAG = "not_connected"
+
+BLACK_FG_TAG = "black_fg"
+GREY_FG_TAG = "grey_fg"
+RED_FG_TAG = "dark_red_bg"
+WHITE_BG_TAG = "white_bg"
+GREY_BG_TAG = "grey_bg"
 
 
 @dataclass
@@ -80,8 +81,7 @@ class Autofocus:
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
-                focus_rating=random.random()
-                * FOCUS_RATING_FOR_MAX_SCORE,  # TODO Remove random
+                focus_rating=0,
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
                 prev_lens_pos=0.0,
@@ -107,9 +107,11 @@ class Autofocus:
         table.column(4, anchor="e")
         table.column(5, anchor="e")
         table.column(6, anchor="e")
-        table.tag_configure(NOT_CONNECTED_TAG, foreground="#838383")
-        table.tag_configure(BAD_FOCUS_TAG, background="#ff8989")
-        table.tag_configure(OK_FOCUS_TAG, background="#ffff74")
+        table.tag_configure(BLACK_FG_TAG, foreground="#000000")
+        table.tag_configure(GREY_FG_TAG, foreground="#8B8B8B")
+        table.tag_configure(RED_FG_TAG, foreground="#e90f0f")
+        table.tag_configure(WHITE_BG_TAG, background="#ffffff")
+        table.tag_configure(GREY_BG_TAG, background="#e8e8e8")
         table.grid(row=0, column=0, sticky="nsew")
         widget.rowconfigure(0, weight=1)
         widget.columnconfigure(0, weight=1)
@@ -164,19 +166,21 @@ class Autofocus:
     def focus_rating_to_display_value(self, rating: int) -> str:
         return str(math.ceil(rating / FOCUS_RATING_FOR_MAX_SCORE * 10))
 
-    def focus_rating_to_tag(self, rating: int) -> str:
-        if rating > FOCUS_RATING_FOR_OK_SCORE:
-            return GOOD_FOCUS_TAG
-        if rating > FOCUS_RATING_FOR_LOW_SCORE:
-            return OK_FOCUS_TAG
-        return BAD_FOCUS_TAG
+    def get_fg_tag(self, rating: int, is_connected: bool) -> str:
+        if not is_connected:
+            return GREY_FG_TAG
+        return BLACK_FG_TAG if rating > FOCUS_RATING_FOR_OK_SCORE else RED_FG_TAG
 
     def update_table_row(self, table: ttk.Treeview, cam: CamInfo, index: int):
         item = table.get_children()[index]
+        is_even_row = index % 2 == 0
         table.item(
             item,
             values=self.get_table_values(cam),
-            tags=(self.focus_rating_to_tag(cam.focus_rating),),
+            tags=(
+                WHITE_BG_TAG if is_even_row else GREY_BG_TAG,
+                self.get_fg_tag(cam.focus_rating, cam.connected),
+            ),
         )
 
     def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
