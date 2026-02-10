@@ -13,7 +13,7 @@ from tkinter import ttk
 
 
 @dataclass
-class PerCamInfo:
+class CamInfo:
     name: str
     ip: str
     connected: bool
@@ -29,9 +29,7 @@ class Autofocus:
         self.cam_info_lock = threading.Lock()
         self.shutdown_event = threading.Event()
         with self.cam_info_lock:
-            self.cam_info: list[PerCamInfo] = self.read_cam_info(
-                config.CAMERA_LIST_FILE
-            )
+            self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
         self.check_cams_online_thread = threading.Thread(
             target=lambda: asyncio.run(self.check_cams_online_loop()), daemon=True
         )
@@ -55,11 +53,11 @@ class Autofocus:
         check_cams_thread.join()
         thread_pool.shutdown()
 
-    def read_cam_info(self, file: str) -> typing.List[PerCamInfo]:
+    def read_cam_info(self, file: str) -> typing.List[CamInfo]:
         with open(file, "r") as f:
             cams: list[dict] = json.load(f)
         return [
-            PerCamInfo(
+            CamInfo(
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
@@ -89,7 +87,7 @@ class Autofocus:
         table.grid(row=0, column=0, sticky="nsew")
         widget.rowconfigure(0, weight=1)
         widget.columnconfigure(0, weight=1)
-        for info in self.cam_info:
+        for info in self.cameras:
             table.insert(
                 parent="",
                 index="end",
@@ -131,22 +129,22 @@ class Autofocus:
         if self.shutdown_event.is_set():
             return
         with self.cam_info_lock:
-            for i in range(len(self.cam_info)):
-                self.update_table_row(table, self.cam_info[i], i)
+            for i in range(len(self.cameras)):
+                self.update_table_row(table, self.cameras[i], i)
         table.after(500, self.update_autofocus_table_loop, table)
 
-    def get_table_values(self, info: PerCamInfo) -> typing.Tuple[str]:
+    def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
         return (
-            info.name,
-            "Connected" if info.connected else "Not Connected",
-            str(info.focus_rating),
-            f"{(1 / info.lens_pos):.2f}" if info.lens_pos > 0.1 else "∞",
-            f"{info.prev_distance:.2f}",
-            str(info.prev_rating),
-            info.message,
+            cam.name,
+            "Connected" if cam.connected else "Not Connected",
+            str(cam.focus_rating),
+            f"{(1 / cam.lens_pos):.2f}" if cam.lens_pos > 0.1 else "∞",
+            f"{cam.prev_distance:.2f}",
+            str(cam.prev_rating),
+            cam.message,
         )
 
-    def update_table_row(self, table: ttk.Treeview, info: PerCamInfo, index: int):
+    def update_table_row(self, table: ttk.Treeview, info: CamInfo, index: int):
         item = table.get_children()[index]
         table.item(
             item,
@@ -167,11 +165,11 @@ class Autofocus:
         """Callback when Verify button is clicked"""
         print("Verify clicked")
 
-    def get_selected_cams(self, table: ttk.Treeview) -> typing.List[PerCamInfo]:
+    def get_selected_cams(self, table: ttk.Treeview) -> typing.List[CamInfo]:
         selected_items = table.selection()
         selected_ips = [table.item(item)["values"][0] for item in selected_items]
         with self.cam_info_lock:
-            return [cam for cam in self.cam_info if cam.name in selected_ips]
+            return [cam for cam in self.cameras if cam.name in selected_ips]
 
     def get_endpoint(self, ip: str, route: str) -> str:
         return f"http://{ip}:5000/{route}"
@@ -193,14 +191,14 @@ class Autofocus:
                 async with asyncio.TaskGroup() as tg:
                     tasks = [
                         (cam, tg.create_task(self.check_cam_online(session, cam.ip)))
-                        for cam in self.cam_info
+                        for cam in self.cameras
                     ]
 
                 with self.cam_info_lock:
                     for cam, task in tasks:
                         cam.connected = task.result()
 
-    async def autofocus_cam(self, session: aiohttp.ClientSession, cam: PerCamInfo):
+    async def autofocus_cam(self, session: aiohttp.ClientSession, cam: CamInfo):
         with self.cam_info_lock:
             cam.message = "Autofocus in progress..."
         endpoint = self.get_endpoint(cam.ip, "autofocus")
@@ -228,7 +226,7 @@ class Autofocus:
             with self.cam_info_lock:
                 cam.message = "Aufocus failed: Unknown reason"
 
-    async def autofocus_cams(self, cams: typing.List[PerCamInfo]):
+    async def autofocus_cams(self, cams: typing.List[CamInfo]):
         async with aiohttp.ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
                 for cam in cams:
