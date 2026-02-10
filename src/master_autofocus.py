@@ -13,6 +13,12 @@ import tkinter as tk
 from tkinter import ttk
 
 FOCUS_RATING_FOR_MAX_SCORE = 14000
+FOCUS_RATING_FOR_OK_SCORE = 6000
+FOCUS_RATING_FOR_LOW_SCORE = 3000
+GOOD_FOCUS_TAG = "goof_focucs"
+OK_FOCUS_TAG = "ok_focus"
+BAD_FOCUS_TAG = "bad_focus"
+NOT_CONNECTED_TAG = "not_connected"
 
 
 @dataclass
@@ -101,7 +107,9 @@ class Autofocus:
         table.column(4, anchor="e")
         table.column(5, anchor="e")
         table.column(6, anchor="e")
-        table.tag_configure("offline", foreground="gray")
+        table.tag_configure(NOT_CONNECTED_TAG, foreground="#838383")
+        table.tag_configure(BAD_FOCUS_TAG, background="#ff8989")
+        table.tag_configure(OK_FOCUS_TAG, background="#ffff74")
         table.grid(row=0, column=0, sticky="nsew")
         widget.rowconfigure(0, weight=1)
         widget.columnconfigure(0, weight=1)
@@ -140,7 +148,6 @@ class Autofocus:
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=2)
         focus_selected_btn.pack(side="left", fill="both", expand=True, padx=2)
         verify_selected_btn.pack(side="left", fill="both", expand=True, padx=2)
-
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
@@ -157,12 +164,19 @@ class Autofocus:
     def focus_rating_to_display_value(self, rating: int) -> str:
         return str(math.ceil(rating / FOCUS_RATING_FOR_MAX_SCORE * 10))
 
+    def focus_rating_to_tag(self, rating: int) -> str:
+        if rating > FOCUS_RATING_FOR_OK_SCORE:
+            return GOOD_FOCUS_TAG
+        if rating > FOCUS_RATING_FOR_LOW_SCORE:
+            return OK_FOCUS_TAG
+        return BAD_FOCUS_TAG
+
     def update_table_row(self, table: ttk.Treeview, cam: CamInfo, index: int):
         item = table.get_children()[index]
         table.item(
             item,
             values=self.get_table_values(cam),
-            tags=() if cam.connected else ("offline",),
+            tags=(self.focus_rating_to_tag(cam.focus_rating),),
         )
 
     def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
