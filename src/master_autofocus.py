@@ -33,16 +33,16 @@ class Autofocus:
         self.shutdown_event = threading.Event()
         with self.cam_info_lock:
             self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
-        self.check_cams_online_thread = threading.Thread(
+        self.ping_cams_thread = threading.Thread(
             target=lambda: asyncio.run(self.check_cams_connection()), daemon=True
         )
-        self.check_cams_online_thread.start()
+        self.ping_cams_thread.start()
         self.thread_pool = ThreadPoolExecutor()
         self._finalizer = weakref.finalize(
             self,
             self.cleanup,
             self.shutdown_event,
-            self.check_cams_online_thread,
+            self.ping_cams_thread,
             self.thread_pool,
         )
         self.thread_pool.submit(
@@ -59,11 +59,11 @@ class Autofocus:
     @staticmethod
     def cleanup(
         shutdown_event: threading.Event,
-        check_cams_thread: threading.Thread,
+        ping_cams_thread: threading.Thread,
         thread_pool: ThreadPoolExecutor,
     ):
         shutdown_event.set()
-        check_cams_thread.join()
+        ping_cams_thread.join()
         thread_pool.shutdown()
 
     def read_cam_info(self, file: str) -> typing.List[CamInfo]:
@@ -74,7 +74,8 @@ class Autofocus:
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
-                focus_rating=random.random() * FOCUS_RATING_FOR_MAX_SCORE, # TODO Remove random
+                focus_rating=random.random()
+                * FOCUS_RATING_FOR_MAX_SCORE,  # TODO Remove random
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
                 prev_lens_pos=0.0,
