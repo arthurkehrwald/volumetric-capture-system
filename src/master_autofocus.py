@@ -74,7 +74,7 @@ class Autofocus:
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
-                focus_rating=random.random() * FOCUS_RATING_FOR_MAX_SCORE,
+                focus_rating=random.random() * FOCUS_RATING_FOR_MAX_SCORE, # TODO Remove random
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
                 prev_lens_pos=0.0,
