@@ -1,11 +1,10 @@
 import asyncio
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import threading
 import typing
 import weakref
 import aiohttp
-import requests
 import json
 from utils import config
 import tkinter as tk
