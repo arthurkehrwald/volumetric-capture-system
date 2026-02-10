@@ -75,9 +75,10 @@ class Autofocus:
             "Camera",
             "Status",
             "Focus Rating",
-            "Prev. Focus Rating",
             "Focus Distance (m)",
+            "Prev. Focus Rating",
             "Prev. Focus Distance (m)",
+            "Message"
         )
         table = ttk.Treeview(widget, columns=columns, show="headings")
         for col in columns:
@@ -137,11 +138,10 @@ class Autofocus:
             info.name,
             "Online" if info.online else "Offline",
             str(info.focus_rating),
-            str(info.prev_rating),
             f"{(1 / info.lens_pos):.2f}" if info.lens_pos > 0.1 else "∞",
             f"{info.prev_distance:.2f}",
-            "Click!",
-            "Click!",
+            str(info.prev_rating),
+            ""
         )
 
     def update_table_row(self, table: ttk.Treeview, info: PerCamInfo, index: int):
