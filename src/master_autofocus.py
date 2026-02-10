@@ -35,20 +35,24 @@ class Autofocus:
             target=lambda: asyncio.run(self.check_cams_online_loop()), daemon=True
         )
         self.check_cams_online_thread.start()
+        self.thread_pool = ThreadPoolExecutor()
         self._finalizer = weakref.finalize(
             self,
             self.cleanup,
             self.shutdown_event,
             self.check_cams_online_thread,
+            self.thread_pool,
         )
 
     @staticmethod
     def cleanup(
         shutdown_event: threading.Event,
         check_cams_thread: threading.Thread,
+        thread_pool: ThreadPoolExecutor,
     ):
         shutdown_event.set()
         check_cams_thread.join()
+        thread_pool.shutdown()
 
     def read_cam_info(self, file: str) -> typing.List[PerCamInfo]:
         with open(file, "r") as f:
@@ -154,7 +158,8 @@ class Autofocus:
 
     def on_focus_selected_clicked(self, table: ttk.Treeview):
         """Callback when Focus Selected button is clicked"""
-        print("Focus selected clicked")
+        selected = self.get_selected_cams(table)
+        self.thread_pool.submit(lambda: asyncio.run(self.autofocus_cams(selected)))
 
     def on_verify_selected_clicked(self):
         """Callback when Verify button is clicked"""
@@ -190,19 +195,24 @@ class Autofocus:
                     for cam, task in tasks:
                         cam.online = task.result()
 
-    def autofocus(self, camera: PerCamInfo):
-        endpoint = self.get_endpoint(camera.ip, "autofocus")
+    async def autofocus_cam(self, session: aiohttp.ClientSession, cam: PerCamInfo):
+        endpoint = self.get_endpoint(cam.ip, "autofocus")
         try:
-            response = requests.get(endpoint, timeout=20)
-            json = response.json()
-            lens_pos = json["lens_pos"]
-            rating = json["rating"]
-            with self.cam_info_lock:
-                camera.focus_rating = rating
-                camera.lens_pos = lens_pos
-            store_lens_pos(camera.ip, lens_pos)
-        except requests.exceptions.Timeout:
-            return  # TODO
+            async with session.get(endpoint, timeout=10) as response:
+                json = await response.json()
+                lens_pos = json["lens_pos"]
+                rating = json["rating"]
+                with self.cam_info_lock:
+                    cam.focus_rating = rating
+                    cam.lens_pos = lens_pos
+        except TimeoutError:
+            pass
+
+    async def autofocus_cams(self, cams: typing.List[PerCamInfo]):
+        async with aiohttp.ClientSession() as session:
+            async with asyncio.TaskGroup() as tg:
+                for cam in cams:
+                    tg.create_task(self.autofocus_cam(session, cam))
 
 
 def store_lens_pos(ip: str, lens_pos: float):
