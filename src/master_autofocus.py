@@ -1,6 +1,8 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import math
+import random
 import threading
 import typing
 import weakref
@@ -9,6 +11,8 @@ import json
 from utils import config
 import tkinter as tk
 from tkinter import ttk
+
+FOCUS_RATING_FOR_MAX_SCORE = 14000
 
 
 @dataclass
@@ -70,7 +74,7 @@ class Autofocus:
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
-                focus_rating=0,
+                focus_rating=random.random() * FOCUS_RATING_FOR_MAX_SCORE,
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
                 prev_lens_pos=0.0,
@@ -92,6 +96,10 @@ class Autofocus:
         table = ttk.Treeview(widget, columns=columns, show="headings")
         for col in columns:
             table.heading(col, text=col)
+        table.column(2, anchor="e")
+        table.column(3, anchor="e")
+        table.column(4, anchor="e")
+        table.column(5, anchor="e")
         table.tag_configure("offline", foreground="gray")
         table.grid(row=0, column=0, sticky="nsew")
         widget.rowconfigure(0, weight=1)
@@ -142,26 +150,29 @@ class Autofocus:
                 self.update_table_row(table, self.cameras[i], i)
         table.after(500, self.update_autofocus_table_loop, table)
 
+    def lens_pos_to_focus_dist_str(self, lens_pos: float) -> str:
+        return f"{(1 / lens_pos):.2f}" if lens_pos > 0.1 else "∞"
+
+    def focus_rating_to_display_value(self, rating: int) -> str:
+        return str(math.ceil(rating / FOCUS_RATING_FOR_MAX_SCORE * 10))
+
+    def update_table_row(self, table: ttk.Treeview, cam: CamInfo, index: int):
+        item = table.get_children()[index]
+        table.item(
+            item,
+            values=self.get_table_values(cam),
+            tags=() if cam.connected else ("offline",),
+        )
+
     def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
         return (
             cam.name,
             "Connected" if cam.connected else "Not Connected",
-            str(cam.focus_rating),
-            str(cam.prev_rating),
+            self.focus_rating_to_display_value(cam.focus_rating),
+            self.focus_rating_to_display_value(cam.prev_rating),
             self.lens_pos_to_focus_dist_str(cam.lens_pos),
             self.lens_pos_to_focus_dist_str(cam.prev_lens_pos),
             cam.message,
-        )
-
-    def lens_pos_to_focus_dist_str(self, lens_pos: float) -> str:
-        return f"{(1 / lens_pos):.2f}" if lens_pos > 0.1 else "∞"
-
-    def update_table_row(self, table: ttk.Treeview, info: CamInfo, index: int):
-        item = table.get_children()[index]
-        table.item(
-            item,
-            values=self.get_table_values(info),
-            tags=() if info.connected else ("offline",),
         )
 
     def on_focus_all_clicked(self, table: ttk.Treeview):
