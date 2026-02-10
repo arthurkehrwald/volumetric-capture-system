@@ -99,7 +99,16 @@ class Autofocus:
             "Focus Distance (m)",
             "Prev. Focus Distance (m)",
         )
-        table = ttk.Treeview(widget, columns=columns, show="headings")
+        table_style = ttk.Style()
+        table_style_name = "Edge.Treeview"
+        table_style.layout(
+            table_style_name,
+            [("Edge.Treeview.treearea", {"sticky": "nsew"})],
+        )
+        table_style.configure(table_style_name, highlightthickness=0, bd=0)
+        table = ttk.Treeview(
+            widget, columns=columns, show="headings", style="Edge.Treeview"
+        )
         for col in columns:
             table.heading(col, text=col)
         table.column(3, anchor="e")
