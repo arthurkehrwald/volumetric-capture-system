@@ -206,23 +206,29 @@ class Autofocus:
             text="Focus All",
             command=lambda: self.on_focus_all_clicked(table),
         )
-        focus_selected_btn = ttk.Button(
+        self.focus_selected_btn = ttk.Button(
             bottom_btns,
             text="Focus Selected",
             command=lambda: self.on_focus_selected_clicked(table),
+            state="disabled",
         )
-        verify_selected_btn = ttk.Button(
+        self.verify_selected_btn = ttk.Button(
             bottom_btns,
             text="Verify Selected",
             command=lambda: self.on_verify_selected_clicked(table),
+            state="disabled",
         )
         save_btn = ttk.Button(bottom_btns, text="Save", command=self.on_save_clicked)
         bottom_btns.grid(row=1, column=0, columnspan=2, sticky="ew")
         padding = 4
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
-        focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
-        verify_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
+        self.focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
+        self.verify_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
         save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
+        
+        # Bind selection change event to update button states
+        table.bind("<<Change>>", lambda e: self.update_button_states(table))
+        
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
@@ -271,6 +277,8 @@ class Autofocus:
                 self.get_fg_tag(cam.focus_rating, cam.connected),
             ),
         )
+        # Update button states if selection changed
+        self.update_button_states(table)
 
     def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
         return (
@@ -303,7 +311,14 @@ class Autofocus:
             )
         )
 
-    def on_verify_selected_clicked(self):
+    def update_button_states(self, table: ttk.Treeview):
+        """Enable or disable Focus Selected and Verify Selected buttons based on table selection."""
+        has_selection = bool(table.selection())
+        state = "normal" if has_selection else "disabled"
+        self.focus_selected_btn.config(state=state)
+        self.verify_selected_btn.config(state=state)
+
+    def on_verify_selected_clicked(self, table: ttk.Treeview):
         """Callback when Verify button is clicked"""
         print("Verify clicked")
 
