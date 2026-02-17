@@ -1,7 +1,8 @@
 import os
 import json
 import logging
-from flask import Flask, Response, request, jsonify
+import io
+from flask import Flask, Response, request, jsonify, send_file
 from picamera2 import Picamera2
 import cv2
 import time
@@ -207,6 +208,22 @@ def autofocus_route():
             "rating": ideal.rating,
         }
     )
+
+
+@app.route("/photo/<float:lens_pos>")
+def take_photo_route(lens_pos: float):
+    try:
+        photo = autofocus.take_photo(picam2, lens_pos)
+        ret, buffer = cv2.imencode(".jpg", photo)
+        if not ret:
+            logger.error("Failed to encode photo.")
+            return jsonify({"error": "Failed to encode photo"}), 500
+        photo_bytes = io.BytesIO(buffer.tobytes())
+        photo_bytes.seek(0)
+        return send_file(photo_bytes, mimetype="image/jpeg")
+    except Exception as e:
+        logger.error(f"Error in /photo endpoint: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/ping")
