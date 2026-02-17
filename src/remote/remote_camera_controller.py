@@ -192,7 +192,8 @@ def status_route():
 
 @app.route("/rate-lens-pos/<float:lens_pos>")
 def rate_lens_pos_route(lens_pos: float):
-    rating = autofocus.rate_lens_pos(lens_pos, picam2)
+    photo = autofocus.take_photo(picam2, lens_pos)
+    rating = autofocus.rate_focus(photo)
     return jsonify({"rating": rating})
 
 

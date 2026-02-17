@@ -134,8 +134,7 @@ class FocusRating(typing.NamedTuple):
         )
 
 
-def rate_lens_pos(lens_pos: float, running_picam: Picamera2) -> int:
-    photo = take_photo(running_picam, lens_pos)
+def rate_focus(photo: np.ndarray) -> int:
     marker = find_best_test_marker(photo)
     if marker is not None:
         crop = crop_out_marker(photo, marker)
@@ -153,7 +152,8 @@ def find_ideal_lens_pos(
 ) -> FocusRating:
     for _ in range(iterations):
         mid_lens_pos = (lower_bound.lens_pos + upper_bound.lens_pos) / 2
-        mid_rating = rate_lens_pos(mid_lens_pos, running_picam)
+        photo = take_photo(running_picam, mid_lens_pos)
+        mid_rating = rate_focus(photo)
         mid = FocusRating(mid_lens_pos, mid_rating)
 
         if lower_bound.rating > upper_bound.rating:
@@ -171,7 +171,8 @@ def find_lens_pos_bounds(
     for i in range(num_photos):
         MAX_LENS_POS = 2  # 50cm focus dist
         lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-        rating = rate_lens_pos(lens_pos, running_picam)
+        photo = take_photo(running_picam, lens_pos)
+        rating = rate_focus(photo)
         seq.append(FocusRating(lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
     return seq[0], seq[1]
