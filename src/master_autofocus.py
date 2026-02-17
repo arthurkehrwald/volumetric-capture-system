@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import ttk
 
 FOCUS_RATING_FOR_MAX_SCORE = 14000
-FOCUS_RATING_FOR_OK_SCORE = 6000
+MAX_NUM_STARS = 5
 
 BLACK_FG_TAG = "black_fg"
 GREY_FG_TAG = "grey_fg"
@@ -116,8 +116,6 @@ class Autofocus:
         )
         for col in columns:
             table.heading(col, text=col)
-        table.column(3, anchor="e")
-        table.column(4, anchor="e")
         table.column(5, anchor="e")
         table.column(6, anchor="e")
         table.tag_configure(BLACK_FG_TAG, foreground="#000000")
@@ -180,12 +178,24 @@ class Autofocus:
         return f"{(1 / lens_pos):.2f}" if lens_pos > 0.1 else "∞"
 
     def focus_rating_to_display_value(self, rating: int) -> str:
-        return str(math.ceil(rating / FOCUS_RATING_FOR_MAX_SCORE * 10))
+        if rating == 0:
+            return "None"
+        num_stars = self.get_star_rating(rating)
+        display_value = ""
+        for i in range(num_stars):
+            display_value += "★"
+        for i in range(MAX_NUM_STARS - num_stars):
+            display_value += "☆"
+        return display_value
+
+    def get_star_rating(self, rating: int) -> int:
+        return math.ceil(rating / float(FOCUS_RATING_FOR_MAX_SCORE) * MAX_NUM_STARS)
 
     def get_fg_tag(self, rating: int, is_connected: bool) -> str:
         if not is_connected:
             return GREY_FG_TAG
-        return BLACK_FG_TAG if rating > FOCUS_RATING_FOR_OK_SCORE else RED_FG_TAG
+        is_ok_rating = self.get_star_rating(rating) / MAX_NUM_STARS >= 0.5
+        return BLACK_FG_TAG if is_ok_rating else RED_FG_TAG
 
     def update_table_row(self, table: ttk.Treeview, cam: CamInfo, index: int):
         item = table.get_children()[index]
