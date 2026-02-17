@@ -23,6 +23,7 @@ GREY_BG_TAG = "grey_bg"
 
 @dataclass
 class CamInfo:
+    lock: threading.Lock
     name: str
     ip: str
     connected: bool
@@ -35,9 +36,9 @@ class CamInfo:
 
 class Autofocus:
     def __init__(self):
-        self.cam_info_lock = threading.Lock()
+        self.all_cameras_lock = threading.Lock()
         self.shutdown_event = threading.Event()
-        with self.cam_info_lock:
+        with self.all_cameras_lock:
             self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
         self.ping_cams_thread = threading.Thread(
             target=lambda: asyncio.run(self.check_cams_connection()), daemon=True
@@ -77,6 +78,7 @@ class Autofocus:
             cams: list[dict] = json.load(f)
         return [
             CamInfo(
+                lock=threading.Lock(),
                 name=cam["name"],
                 ip=cam["ip"],
                 connected=False,
@@ -164,8 +166,8 @@ class Autofocus:
     def update_autofocus_table_loop(self, table: ttk.Treeview):
         if self.shutdown_event.is_set():
             return
-        with self.cam_info_lock:
-            for i in range(len(self.cameras)):
+        for i in range(len(self.cameras)):
+            with self.cameras[i].lock:
                 self.update_table_row(table, self.cameras[i], i)
         table.after(500, self.update_autofocus_table_loop, table)
 
@@ -228,7 +230,7 @@ class Autofocus:
     def get_selected_cams(self, table: ttk.Treeview) -> typing.List[CamInfo]:
         selected_items = table.selection()
         selected_ips = [table.item(item)["values"][0] for item in selected_items]
-        with self.cam_info_lock:
+        with self.all_cameras_lock:
             return [cam for cam in self.cameras if cam.name in selected_ips]
 
     def get_endpoint(
@@ -262,7 +264,7 @@ class Autofocus:
                         for cam in self.cameras
                     ]
 
-                with self.cam_info_lock:
+                with cam.lock:
                     for cam, task in tasks:
                         cam.connected = task.result()
 
@@ -290,7 +292,7 @@ class Autofocus:
         response_handler: typing.Callable[[typing.Dict, CamInfo], None],
         action_name: str,
     ):
-        with self.cam_info_lock:
+        with cam.lock:
             cam.message = f"{action_name} in progress..."
         endpoint = url_builder(cam)
         try:
@@ -298,19 +300,19 @@ class Autofocus:
                 json = await response.json()
                 response_handler(json, cam)
         except TimeoutError:
-            with self.cam_info_lock:
+            with cam.lock:
                 cam.message = f"{action_name} failed: No connection"
         except aiohttp.ClientConnectionError:
-            with self.cam_info_lock:
+            with cam.lock:
                 cam.message = f"{action_name} failed: Remote script not running"
         except (aiohttp.ContentTypeError, KeyError):
-            with self.cam_info_lock:
+            with cam.lock:
                 cam.message = (
                     f"{action_name} failed: Malformed response (Version mismatch?)"
                 )
         except Exception as ex:
             print(f"Unknown exception during {action_name}: {ex}")
-            with self.cam_info_lock:
+            with cam.lock:
                 cam.message = f"{action_name} failed: Unknown reason"
 
     def build_autofocus_url(self, cam: CamInfo) -> str:
@@ -322,7 +324,7 @@ class Autofocus:
     def handle_autofocus_response(self, response: typing.Dict, cam: CamInfo):
         lens_pos = response["lens_pos"]
         rating = response["rating"]
-        with self.cam_info_lock:
+        with cam.lock:
             cam.prev_rating = cam.focus_rating
             cam.prev_lens_pos = cam.lens_pos
             cam.focus_rating = rating
@@ -335,7 +337,7 @@ class Autofocus:
 
     def handle_rate_lens_pos_response(self, response: typing.Dict, cam: CamInfo):
         rating = response["rating"]
-        with self.cam_info_lock:
+        with cam.lock:
             cam.focus_rating = rating
             cam.message = (
                 "Focus rating completed successfully."
