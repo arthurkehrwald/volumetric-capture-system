@@ -210,7 +210,7 @@ def autofocus_route():
 
 @app.route("/ping")
 def ping_route():
-    return '', 200
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

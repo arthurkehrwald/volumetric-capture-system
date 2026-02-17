@@ -56,9 +56,12 @@ class Autofocus:
             lambda: asyncio.run(
                 self.request_from_cameras(
                     self.cameras,
-                    self.build_rate_lens_pos_response,
+                    self.build_rate_lens_pos_url,
                     self.handle_rate_lens_pos_response,
                     "Focus rating",
+                    timeout=3,
+                    set_cam_message=True,
+                    delay=5,
                 )
             )
         )
@@ -160,7 +163,9 @@ class Autofocus:
         padding = 4
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
         focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
-        verify_selected_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
+        verify_selected_btn.pack(
+            side="left", fill="both", expand=True, padx=(padding, 0)
+        )
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
@@ -219,6 +224,8 @@ class Autofocus:
                     self.build_autofocus_url,
                     self.handle_autofocus_response,
                     "Autofocus",
+                    timeout=10,
+                    set_cam_message=True,
                 )
             )
         )
@@ -239,34 +246,22 @@ class Autofocus:
         endpoint = f"http://{ip}:5000/{route}"
         return endpoint if variable is None else endpoint + "/" + variable
 
-    async def check_cam_connection(
-        self, session: aiohttp.ClientSession, ip: str
-    ) -> bool:
-        endpoint = self.get_endpoint(ip, "ping")
-        try:
-            async with session.get(endpoint, timeout=1) as response:
-                return response.ok
-        except TimeoutError:
-            return False
-        except Exception as e:
-            print(f"Unknown exception while pinging camera: {e}")
-            return False
-
     async def check_cams_connection(self):
         async with aiohttp.ClientSession() as session:
             while not self.shutdown_event.is_set():
                 async with asyncio.TaskGroup() as tg:
-                    tasks = [
-                        (
-                            cam,
-                            tg.create_task(self.check_cam_connection(session, cam.ip)),
+                    for cam in self.cameras:
+                        tg.create_task(
+                            self.request_from_camera(
+                                session,
+                                cam,
+                                self.build_ping_url,
+                                self.handle_ping_response,
+                                "Ping",
+                                timeout=1,
+                                set_cam_message=False,
+                            )
                         )
-                        for cam in self.cameras
-                    ]
-
-                with cam.lock:
-                    for cam, task in tasks:
-                        cam.connected = task.result()
 
     async def request_from_cameras(
         self,
@@ -274,13 +269,23 @@ class Autofocus:
         url_builder: typing.Callable[[CamInfo], str],
         response_handler: typing.Callable[[typing.Dict, CamInfo], None],
         action_name: str,
+        timeout: float,
+        set_cam_message: bool,
+        delay: float | None = 0.0,
     ):
+        await asyncio.sleep(delay)
         async with aiohttp.ClientSession() as session:
             async with asyncio.TaskGroup() as tg:
                 for cam in cams:
                     tg.create_task(
                         self.request_from_camera(
-                            session, cam, url_builder, response_handler, action_name
+                            session,
+                            cam,
+                            url_builder,
+                            response_handler,
+                            action_name,
+                            timeout,
+                            set_cam_message,
                         )
                     )
 
@@ -291,35 +296,47 @@ class Autofocus:
         url_builder: typing.Callable[[CamInfo], str],
         response_handler: typing.Callable[[typing.Dict, CamInfo], None],
         action_name: str,
+        timeout: float,
+        set_cam_message: bool,
     ):
-        with cam.lock:
-            cam.message = f"{action_name} in progress..."
+        if set_cam_message:
+            with cam.lock:
+                cam.message = f"{action_name} in progress..."
         endpoint = url_builder(cam)
+        error_msg = None
         try:
-            async with session.get(endpoint, timeout=10) as response:
+            async with session.get(endpoint, timeout=timeout) as response:
                 json = await response.json()
                 response_handler(json, cam)
         except TimeoutError:
-            with cam.lock:
-                cam.message = f"{action_name} failed: No connection"
+            error_msg = f"{action_name} failed: No connection"
         except aiohttp.ClientConnectionError:
-            with cam.lock:
-                cam.message = f"{action_name} failed: Remote script not running"
+            error_msg = f"{action_name} failed: Remote script not running"
         except (aiohttp.ContentTypeError, KeyError):
-            with cam.lock:
-                cam.message = (
-                    f"{action_name} failed: Malformed response (Version mismatch?)"
-                )
+            error_msg = f"{action_name} failed: Malformed response (Version mismatch?)"
         except Exception as ex:
+            # Can't throw here because that would cancel running requests to all other cameras
+            # Just print instead
             print(f"Unknown exception during {action_name}: {ex}")
+            error_msg = f"{action_name} failed: Unknown reason"
+        if set_cam_message and error_msg is not None:
             with cam.lock:
-                cam.message = f"{action_name} failed: Unknown reason"
+                cam.message = error_msg
 
     def build_autofocus_url(self, cam: CamInfo) -> str:
-        return self.get_endpoint(cam.ip, "autofocus")
+        with cam.lock:
+            ip = cam.ip
+        return self.get_endpoint(ip, "autofocus")
 
-    def build_rate_lens_pos_response(self, cam: CamInfo) -> str:
-        return self.get_endpoint(cam.ip, "rate-lens-pos", str(cam.lens_pos))
+    def build_rate_lens_pos_url(self, cam: CamInfo) -> str:
+        with cam.lock:
+            ip = cam.ip
+        return self.get_endpoint(ip, "rate-lens-pos", str(cam.lens_pos))
+
+    def build_ping_url(self, cam: CamInfo) -> str:
+        with cam.lock:
+            ip = cam.ip
+        return self.get_endpoint(ip, "ping")
 
     def handle_autofocus_response(self, response: typing.Dict, cam: CamInfo):
         lens_pos = response["lens_pos"]
@@ -344,6 +361,11 @@ class Autofocus:
                 if rating != 0
                 else "Focus rating failed: No markers recognized"
             )
+
+    def handle_ping_response(self, response: typing.Dict, cam: CamInfo):
+        ok = response["status"] == "ok"
+        with cam.lock:
+            cam.connected = ok
 
 
 def store_lens_pos(ip: str, lens_pos: float):
