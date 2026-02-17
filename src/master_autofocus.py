@@ -94,6 +94,20 @@ class Autofocus:
             for cam in cams
         ]
 
+    def write_lens_positions(self, cameras: typing.List[CamInfo]):
+        with open(config.CAMERA_LIST_FILE, "r") as f:
+            cameras_json_list = json.load(f)
+
+        for cam in cameras:
+            with cam.lock:
+                for camera_json_dict in cameras_json_list:
+                    if camera_json_dict["ip"] == cam.ip:
+                        camera_json_dict["lens_position"] = cam.lens_pos
+                        break
+
+        with open(config.CAMERA_LIST_FILE, "w") as f:
+            json.dump(cameras_json_list, f, indent=4)
+
     def create_gui(self, widget: ttk.Widget):
         columns = (
             "Camera",
@@ -157,13 +171,13 @@ class Autofocus:
             text="Verify Selected",
             command=lambda: self.on_verify_selected_clicked(table),
         )
+        save_btn = ttk.Button(bottom_btns, text="Save", command=self.on_save_clicked)
         bottom_btns.grid(row=1, column=0, columnspan=2, sticky="ew")
         padding = 4
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
         focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
-        verify_selected_btn.pack(
-            side="left", fill="both", expand=True, padx=(padding, 0)
-        )
+        verify_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
+        save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
@@ -243,6 +257,9 @@ class Autofocus:
     def on_verify_selected_clicked(self):
         """Callback when Verify button is clicked"""
         print("Verify clicked")
+
+    def on_save_clicked(self):
+        self.write_lens_positions(self.cameras)
 
     def get_selected_cams(self, table: ttk.Treeview) -> typing.List[CamInfo]:
         selected_items = table.selection()
