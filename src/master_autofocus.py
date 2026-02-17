@@ -10,6 +10,8 @@ import json
 from utils import config
 import tkinter as tk
 from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
+import io
 
 FOCUS_RATING_FOR_MAX_SCORE = 14000
 MAX_NUM_STARS = 5
@@ -300,14 +302,29 @@ class Autofocus:
 
     def on_table_selection(self, table: ttk.Treeview):
         """Enable or disable Focus Selected and Verify Selected buttons based on table selection."""
-        has_selection = bool(table.selection())
-        state = "normal" if has_selection else "disabled"
-        self.focus_selected_btn.config(state=state)
-        self.verify_selected_btn.config(state=state)
+        num_selected = len(table.selection())
+        self.focus_selected_btn.config(
+            state="normal" if num_selected > 0 else "disabled"
+        )
+        self.verify_selected_btn.config(
+            state="normal" if num_selected == 1 else "disabled"
+        )
 
     def on_verify_selected_clicked(self, table: ttk.Treeview):
         """Callback when Verify button is clicked"""
-        print("Verify clicked")
+        selected = self.get_selected_cams(table)
+        self.thread_pool.submit(
+            lambda: asyncio.run(
+                self.request_from_cameras(
+                    selected,
+                    self.build_take_photo_url,
+                    self.handle_photo_response,
+                    "Photo",
+                    2,
+                    True,
+                )
+            )
+        )
 
     def on_save_clicked(self):
         self.write_all_lens_positions()
@@ -350,7 +367,9 @@ class Autofocus:
         self,
         cams: typing.List[CamInfo],
         url_builder: typing.Callable[[CamInfo], str],
-        response_handler: typing.Callable[[typing.Dict, CamInfo], None],
+        response_handler: typing.Callable[
+            [aiohttp.ClientResponse, CamInfo], typing.Awaitable
+        ],
         action_name: str,
         timeout: float,
         set_cam_message: bool,
@@ -377,7 +396,9 @@ class Autofocus:
         session: aiohttp.ClientSession,
         cam: CamInfo,
         url_builder: typing.Callable[[CamInfo], str],
-        response_handler: typing.Callable[[typing.Dict, CamInfo], None],
+        response_handler: typing.Callable[
+            [aiohttp.ClientResponse, CamInfo], typing.Awaitable
+        ],
         action_name: str,
         timeout: float,
         set_cam_message: bool,
@@ -389,8 +410,7 @@ class Autofocus:
         error_msg = None
         try:
             async with session.get(endpoint, timeout=timeout) as response:
-                json = await response.json()
-                response_handler(json, cam)
+                await response_handler(response, cam)
         except TimeoutError:
             error_msg = f"{action_name} failed: No connection"
         except aiohttp.ClientConnectionError:
@@ -421,9 +441,17 @@ class Autofocus:
             ip = cam.ip
         return self.get_endpoint(ip, "ping")
 
-    def handle_autofocus_response(self, response: typing.Dict, cam: CamInfo):
-        lens_pos = response["lens_pos"]
-        rating = response["rating"]
+    def build_take_photo_url(self, cam: CamInfo) -> str:
+        with cam.lock:
+            ip = cam.ip
+        return self.get_endpoint(ip, "photo", str(0.5))
+
+    async def handle_autofocus_response(
+        self, response: aiohttp.ClientResponse, cam: CamInfo
+    ):
+        response_json = await response.json()
+        lens_pos = response_json["lens_pos"]
+        rating = response_json["rating"]
         with cam.lock:
             cam.prev_rating = cam.focus_rating
             cam.prev_lens_pos = cam.lens_pos
@@ -436,8 +464,11 @@ class Autofocus:
             )
         self.set_has_unsaved_changes(True)
 
-    def handle_rate_lens_pos_response(self, response: typing.Dict, cam: CamInfo):
-        rating = response["rating"]
+    async def handle_rate_lens_pos_response(
+        self, response: aiohttp.ClientResponse, cam: CamInfo
+    ):
+        response_json = await response.json()
+        rating = response_json["rating"]
         with cam.lock:
             cam.focus_rating = rating
             cam.message = (
@@ -446,10 +477,34 @@ class Autofocus:
                 else "Focus rating failed: No markers recognized"
             )
 
-    def handle_ping_response(self, response: typing.Dict, cam: CamInfo):
-        ok = response["status"] == "ok"
+    async def handle_ping_response(
+        self, response: aiohttp.ClientResponse, cam: CamInfo
+    ):
+        response_json = await response.json()
+        ok = response_json["status"] == "ok"
         with cam.lock:
             cam.connected = ok
+
+    async def handle_photo_response(
+        self, response: aiohttp.ClientResponse, cam: CamInfo
+    ):
+        """Display the photo in a tkinter popup window"""
+        image_bytes = await response.read()
+        image = Image.open(io.BytesIO(image_bytes))
+        max_width, max_height = 780, 580
+        image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(image)
+        self.verify_selected_btn.after(0, self.show_photo_popup, photo_image, cam)
+
+    def show_photo_popup(self, photo: ImageTk.PhotoImage, cam: CamInfo):
+        # Create popup window
+        popup = tk.Toplevel()
+        popup.title(f"Photo - {cam.name}")
+        popup.geometry("800x600")
+        # Create label with image
+        label = tk.Label(popup, image=photo)
+        label.image = photo  # Keep a reference to prevent garbage collection
+        label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
 
 if __name__ == "__main__":
