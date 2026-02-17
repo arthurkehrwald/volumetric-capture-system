@@ -36,10 +36,9 @@ class CamInfo:
 
 class Autofocus:
     def __init__(self):
-        self.all_cameras_lock = threading.Lock()
         self.shutdown_event = threading.Event()
-        with self.all_cameras_lock:
-            self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
+        self.cameras: list[CamInfo] = self.read_cam_info(config.CAMERA_LIST_FILE)
+        self.has_unsaved_changes = False
         self.ping_cams_thread = threading.Thread(
             target=lambda: asyncio.run(self.check_cams_connection()), daemon=True
         )
@@ -77,29 +76,9 @@ class Autofocus:
         thread_pool.shutdown()
 
     def on_window_close(self) -> bool:
-        if self.check_for_unsaved_changes():
+        if self.has_unsaved_changes:
             return self.show_save_popup()
         return True
-
-    def check_for_unsaved_changes(self) -> bool:
-        """Check if any camera has unsaved lens position changes by comparing with the JSON file."""
-        try:
-            with open(config.CAMERA_LIST_FILE, "r") as f:
-                cameras_json_list = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            # If file doesn't exist or is invalid, no unsaved changes
-            return False
-
-        with self.all_cameras_lock:
-            for cam in self.cameras:
-                with cam.lock:
-                    # Find the matching camera in the JSON file
-                    for camera_json_dict in cameras_json_list:
-                        if camera_json_dict["ip"] == cam.ip:
-                            if camera_json_dict["lens_position"] != cam.lens_pos:
-                                return True
-                            break
-        return False
 
     def show_save_popup(self) -> bool:
         """
@@ -116,7 +95,7 @@ class Autofocus:
         if result is None:  # Cancel button
             return False
         elif result is True:  # Yes button - Save
-            self.write_lens_positions(self.cameras)
+            self.write_all_lens_positions()
             return True
         else:  # No button - Discard
             return True
@@ -139,11 +118,11 @@ class Autofocus:
             for cam in cams
         ]
 
-    def write_lens_positions(self, cameras: typing.List[CamInfo]):
+    def write_all_lens_positions(self):
         with open(config.CAMERA_LIST_FILE, "r") as f:
             cameras_json_list = json.load(f)
 
-        for cam in cameras:
+        for cam in self.cameras:
             with cam.lock:
                 for camera_json_dict in cameras_json_list:
                     if camera_json_dict["ip"] == cam.ip:
@@ -152,6 +131,8 @@ class Autofocus:
 
         with open(config.CAMERA_LIST_FILE, "w") as f:
             json.dump(cameras_json_list, f, indent=4)
+
+        self.set_has_unsaved_changes(False)
 
     def create_gui(self, widget: ttk.Widget):
         columns = (
@@ -218,17 +199,23 @@ class Autofocus:
             command=lambda: self.on_verify_selected_clicked(table),
             state="disabled",
         )
-        save_btn = ttk.Button(bottom_btns, text="Save", command=self.on_save_clicked)
+        self.save_btn = ttk.Button(
+            bottom_btns, text="Save", command=self.on_save_clicked, state="disabled"
+        )
         bottom_btns.grid(row=1, column=0, columnspan=2, sticky="ew")
         padding = 4
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
-        self.focus_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
-        self.verify_selected_btn.pack(side="left", fill="both", expand=True, padx=padding)
-        save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
-        
+        self.focus_selected_btn.pack(
+            side="left", fill="both", expand=True, padx=padding
+        )
+        self.verify_selected_btn.pack(
+            side="left", fill="both", expand=True, padx=padding
+        )
+        self.save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
+
         # Bind selection change event to update button states
-        table.bind("<<Change>>", lambda e: self.update_button_states(table))
-        
+        table.bind("<<Change>>", lambda e: self.on_table_selection(table))
+
         self.update_autofocus_table_loop(table)
 
     def update_autofocus_table_loop(self, table: ttk.Treeview):
@@ -278,7 +265,7 @@ class Autofocus:
             ),
         )
         # Update button states if selection changed
-        self.update_button_states(table)
+        self.on_table_selection(table)
 
     def get_table_values(self, cam: CamInfo) -> typing.Tuple[str]:
         return (
@@ -311,7 +298,7 @@ class Autofocus:
             )
         )
 
-    def update_button_states(self, table: ttk.Treeview):
+    def on_table_selection(self, table: ttk.Treeview):
         """Enable or disable Focus Selected and Verify Selected buttons based on table selection."""
         has_selection = bool(table.selection())
         state = "normal" if has_selection else "disabled"
@@ -323,13 +310,18 @@ class Autofocus:
         print("Verify clicked")
 
     def on_save_clicked(self):
-        self.write_lens_positions(self.cameras)
+        self.write_all_lens_positions()
+
+    def set_has_unsaved_changes(self, value: bool):
+        self.has_unsaved_changes = value
+        self.save_btn.configure(
+            state="normal" if self.has_unsaved_changes else "disabled"
+        )
 
     def get_selected_cams(self, table: ttk.Treeview) -> typing.List[CamInfo]:
         selected_items = table.selection()
         selected_ips = [table.item(item)["values"][0] for item in selected_items]
-        with self.all_cameras_lock:
-            return [cam for cam in self.cameras if cam.name in selected_ips]
+        return [cam for cam in self.cameras if cam.name in selected_ips]
 
     def get_endpoint(
         self, ip: str, route: str, variable: typing.Optional[str] = None
@@ -442,6 +434,7 @@ class Autofocus:
                 if rating != 0
                 else "Autofocus failed: No markers recognized"
             )
+        self.set_has_unsaved_changes(True)
 
     def handle_rate_lens_pos_response(self, response: typing.Dict, cam: CamInfo):
         rating = response["rating"]
