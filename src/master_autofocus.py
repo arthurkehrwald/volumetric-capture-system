@@ -9,7 +9,7 @@ import aiohttp
 import json
 from utils import config
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 FOCUS_RATING_FOR_MAX_SCORE = 14000
 MAX_NUM_STARS = 5
@@ -75,6 +75,51 @@ class Autofocus:
         shutdown_event.set()
         ping_cams_thread.join()
         thread_pool.shutdown()
+
+    def on_window_close(self) -> bool:
+        if self.check_for_unsaved_changes():
+            return self.show_save_popup()
+        return True
+
+    def check_for_unsaved_changes(self) -> bool:
+        """Check if any camera has unsaved lens position changes by comparing with the JSON file."""
+        try:
+            with open(config.CAMERA_LIST_FILE, "r") as f:
+                cameras_json_list = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            # If file doesn't exist or is invalid, no unsaved changes
+            return False
+
+        with self.all_cameras_lock:
+            for cam in self.cameras:
+                with cam.lock:
+                    # Find the matching camera in the JSON file
+                    for camera_json_dict in cameras_json_list:
+                        if camera_json_dict["ip"] == cam.ip:
+                            if camera_json_dict["lens_position"] != cam.lens_pos:
+                                return True
+                            break
+        return False
+
+    def show_save_popup(self) -> bool:
+        """
+        Show a popup asking whether to save changes.
+        Blocks until the user makes a choice.
+        Returns True if user wants to save or discard (proceed with close).
+        Returns False if user cancels (don't close).
+        """
+        result = messagebox.askyesnocancel(
+            "Unsaved Changes",
+            "You have unsaved focus settings. Do you want to save them?",
+        )
+
+        if result is None:  # Cancel button
+            return False
+        elif result is True:  # Yes button - Save
+            self.write_lens_positions(self.cameras)
+            return True
+        else:  # No button - Discard
+            return True
 
     def read_cam_info(self, file: str) -> typing.List[CamInfo]:
         with open(file, "r") as f:
