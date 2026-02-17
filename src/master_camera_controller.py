@@ -275,12 +275,26 @@ class MasterCameraController:
         
         def af_selection_changed(value):
             self.update_controls()
-            
-        self.af_menu = ttk.OptionMenu(camera_settings_frame, self.af_var, self.af_var.get(), *af_options, command=af_selection_changed)
-        self.af_menu.pack(anchor='w', padx=5, pady=5)
-        
-        self.lens_position_scale = tk.Scale(camera_settings_frame, from_=0.0, to=1.0, resolution=0.01, orient=tk.HORIZONTAL, label="Lens Position", command=lambda x: self.update_controls())
-        self.lens_position_scale.set(self.settings.get('lens_position', 0.66))
+
+        self.af_menu = ttk.OptionMenu(
+            camera_settings_frame,
+            self.af_var,
+            self.af_var.get(),
+            *af_options,
+            command=af_selection_changed,
+        )
+        self.af_menu.pack(anchor="w", padx=5, pady=5)
+
+        self.lens_position_scale = tk.Scale(
+            camera_settings_frame,
+            from_=0.0,
+            to=5.0,
+            resolution=0.01,
+            orient=tk.HORIZONTAL,
+            label="Lens Position",
+            command=lambda x: self.update_controls(),
+        )
+        self.lens_position_scale.set(self.settings.get("lens_position", 0.66))
         self.lens_position_scale.pack(fill="x", padx=5, pady=5)
 
         flicker_label = ttk.Label(camera_settings_frame, text="Flicker Control:")

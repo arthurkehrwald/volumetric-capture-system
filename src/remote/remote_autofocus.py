@@ -11,7 +11,8 @@ between 50cm and infinity. Second, A binary search between the the two
 corresponding lens positions (hopefully) converges to the optimum.
 """
 
-from flask import Flask, jsonify
+import io
+import flask
 from picamera2 import Picamera2, Metadata
 import time
 import numpy as np
@@ -176,3 +177,50 @@ def find_lens_pos_bounds(
         seq.append(FocusRating(lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
     return seq[0], seq[1]
+
+
+autofocus_blueprint = flask.Blueprint("autofocus", __name__)
+
+
+@autofocus_blueprint.route("/rate-lens-pos/<float:lens_pos>")
+def rate_lens_pos_route(lens_pos: float):
+    photo = take_photo(flask.current_app.picam, lens_pos)
+    rating = rate_focus(photo)
+    return flask.jsonify({"rating": rating})
+
+
+@autofocus_blueprint.route("/autofocus")
+def autofocus_route():
+    lower, upper = find_lens_pos_bounds(
+        flask.current_app.picam, num_photos=5
+    )
+    ideal = find_ideal_lens_pos(
+        flask.current_app.picam, lower, upper, iterations=5
+    )
+    return flask.jsonify(
+        {
+            "lens_pos": ideal.lens_pos,
+            "rating": ideal.rating,
+        }
+    )
+
+
+@autofocus_blueprint.route("/photo/<float:lens_pos>")
+def take_photo_route(lens_pos: float):
+    try:
+        photo = take_photo(flask.current_app.picam, lens_pos)
+        ret, buffer = cv.imencode(".jpg", photo)
+        if not ret:
+            flask.current_app.logger.error("Failed to encode photo.")
+            return flask.jsonify({"error": "Failed to encode photo"}), 500
+        photo_bytes = io.BytesIO(buffer.tobytes())
+        photo_bytes.seek(0)
+        return flask.send_file(photo_bytes, mimetype="image/jpeg")
+    except Exception as e:
+        flask.current_app.logger.error(f"Error in /photo endpoint: {e}")
+        return flask.jsonify({"error": str(e)}), 500
+
+
+@autofocus_blueprint.route("/ping")
+def ping_route():
+    return flask.jsonify({"status": "ok"})

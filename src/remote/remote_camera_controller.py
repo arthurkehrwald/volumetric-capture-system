@@ -1,8 +1,7 @@
 import os
 import json
 import logging
-import io
-from flask import Flask, Response, request, jsonify, send_file
+from flask import Flask, Response, request, jsonify
 from picamera2 import Picamera2
 import cv2
 import time
@@ -191,46 +190,6 @@ def status_route():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/rate-lens-pos/<float:lens_pos>")
-def rate_lens_pos_route(lens_pos: float):
-    photo = autofocus.take_photo(picam2, lens_pos)
-    rating = autofocus.rate_focus(photo)
-    return jsonify({"rating": rating})
-
-
-@app.route("/autofocus")
-def autofocus_route():
-    lower, upper = autofocus.find_lens_pos_bounds(picam2, num_photos=5)
-    ideal = autofocus.find_ideal_lens_pos(picam2, lower, upper, iterations=5)
-    return jsonify(
-        {
-            "lens_pos": ideal.lens_pos,
-            "rating": ideal.rating,
-        }
-    )
-
-
-@app.route("/photo/<float:lens_pos>")
-def take_photo_route(lens_pos: float):
-    try:
-        photo = autofocus.take_photo(picam2, lens_pos)
-        ret, buffer = cv2.imencode(".jpg", photo)
-        if not ret:
-            logger.error("Failed to encode photo.")
-            return jsonify({"error": "Failed to encode photo"}), 500
-        photo_bytes = io.BytesIO(buffer.tobytes())
-        photo_bytes.seek(0)
-        return send_file(photo_bytes, mimetype="image/jpeg")
-    except Exception as e:
-        logger.error(f"Error in /photo endpoint: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/ping")
-def ping_route():
-    return jsonify({"status": "ok"})
-
-
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.DEBUG,
@@ -241,6 +200,7 @@ if __name__ == "__main__":
 
     try:
         picam2 = Picamera2()
+        app.picam2 = picam2
     except Exception as e:
         logger.error(f"Failed to initialize Picamera2: {e}")
         exit(1)
@@ -277,6 +237,12 @@ if __name__ == "__main__":
             logger.error(f"Failed to load camera_settings.json: {e}")
 
     configure_camera()
+
+    # This is a magic value. Bad style. Would be better to use something like
+    # https://pypi.org/project/Flask-Injector/, but since this is a remote script,
+    # that would require installing a package on all 70+ Pis. Not worth it imo.
+    app.picam = picam2
+    app.register_blueprint(autofocus.autofocus_blueprint)
     logger.info("Camera successfully configured and started.")
     logger.info("Starting Flask server...")
     try:
