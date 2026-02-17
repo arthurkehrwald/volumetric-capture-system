@@ -88,7 +88,7 @@ class Autofocus:
                 focus_rating=0,
                 prev_rating=0,
                 lens_pos=cam["lens_position"],
-                prev_lens_pos=0.0,
+                prev_lens_pos=-1,
                 message="",
             )
             for cam in cams
@@ -189,7 +189,11 @@ class Autofocus:
         table.after(500, self.update_autofocus_table_loop, table)
 
     def lens_pos_to_focus_dist_str(self, lens_pos: float) -> str:
-        return f"{(1 / lens_pos):.2f}" if lens_pos > 0.1 else "∞"
+        if lens_pos < 0:
+            return "-"
+        if lens_pos < 0.05:
+            return "∞"
+        return f"{(1 / lens_pos):.2f}"
 
     def focus_rating_to_display_value(self, rating: int) -> str:
         if rating == 0:
