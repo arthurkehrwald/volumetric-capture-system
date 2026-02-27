@@ -5,6 +5,7 @@ from reportlab.pdfgen import canvas
 from PIL import Image
 import math
 
+
 def generate_siemens_star(size_px):
     """
     Generate a Siemens star image with black and white circular sectors.
@@ -12,7 +13,9 @@ def generate_siemens_star(size_px):
     :param size_px: Size of the image in pixels (width and height).
     :return: A numpy array representing the Siemens star.
     """
-    star = np.ones((size_px, size_px), dtype=np.uint8) * 255  # Start with a white canvas
+    star = (
+        np.ones((size_px, size_px), dtype=np.uint8) * 255
+    )  # Start with a white canvas
     center = size_px // 2
     radius = int(center * math.sqrt(2))  # Adjust radius to fill the marker
     num_sectors = 48
@@ -29,10 +32,11 @@ def generate_siemens_star(size_px):
             start_angle,
             end_angle,
             color,
-            -1  # Fill the sector
+            -1,  # Fill the sector
         )
 
     return star
+
 
 def generate_aruco_marker(dictionary, id, size_px):
     """
@@ -46,6 +50,7 @@ def generate_aruco_marker(dictionary, id, size_px):
     marker = np.zeros((size_px, size_px), dtype=np.uint8)
     marker = cv2.aruco.generateImageMarker(dictionary, id, size_px)
     return marker
+
 
 def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
     """
@@ -65,10 +70,11 @@ def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
 
     # Create the ArUco markers
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
-    aruco_size_px = marker_size_px // 5  # ArUco markers are 1/5th the size of the marker
-    aruco_markers = [
-        generate_aruco_marker(aruco_dict, aruco_id, aruco_size_px) for i in range(4)
-    ]
+    aruco_size_px = (
+        marker_size_px // 5
+    )  # ArUco markers are 1/5th the size of the marker
+    marker = generate_aruco_marker(aruco_dict, aruco_id, aruco_size_px)
+    aruco_markers = [marker for i in range(4)]
 
     # Create a blank marker canvas
     marker = np.ones((marker_size_px, marker_size_px), dtype=np.uint8)
@@ -96,18 +102,53 @@ def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
         # Add white border to inward-facing sides
         border_thickness = aruco_size_px // 20
         if i == 0:  # Top-left corner
-            aruco = cv2.copyMakeBorder(aruco, 0, border_thickness, 0, border_thickness, cv2.BORDER_CONSTANT, value=255)
+            aruco = cv2.copyMakeBorder(
+                aruco,
+                0,
+                border_thickness,
+                0,
+                border_thickness,
+                cv2.BORDER_CONSTANT,
+                value=255,
+            )
         elif i == 1:  # Top-right corner
-            aruco = cv2.copyMakeBorder(aruco, border_thickness, 0, 0, border_thickness, 0, cv2.BORDER_CONSTANT, value=255)
+            aruco = cv2.copyMakeBorder(
+                aruco,
+                border_thickness,
+                0,
+                0,
+                border_thickness,
+                0,
+                cv2.BORDER_CONSTANT,
+                value=255,
+            )
         elif i == 2:  # Bottom-left corner
-            aruco = cv2.copyMakeBorder(aruco, 0, border_thickness, border_thickness, 0, cv2.BORDER_CONSTANT, value=255)
+            aruco = cv2.copyMakeBorder(
+                aruco,
+                0,
+                border_thickness,
+                border_thickness,
+                0,
+                cv2.BORDER_CONSTANT,
+                value=255,
+            )
         elif i == 3:  # Bottom-right corner
-            aruco = cv2.copyMakeBorder(aruco, border_thickness, 0, border_thickness, 0, cv2.BORDER_CONSTANT, value=255)
+            aruco = cv2.copyMakeBorder(
+                aruco,
+                border_thickness,
+                0,
+                border_thickness,
+                0,
+                cv2.BORDER_CONSTANT,
+                value=255,
+            )
 
         # Resize back to original size
-        aruco = cv2.resize(aruco, (aruco_size_px, aruco_size_px), interpolation=cv2.INTER_AREA)
+        aruco = cv2.resize(
+            aruco, (aruco_size_px, aruco_size_px), interpolation=cv2.INTER_AREA
+        )
 
-        marker[y:y+aruco_size_px, x:x+aruco_size_px] = aruco
+        marker[y : y + aruco_size_px, x : x + aruco_size_px] = aruco
 
     # Save the marker as a PDF
     marker_image = Image.fromarray(marker)
@@ -123,9 +164,10 @@ def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
         x=x_center,  # Center horizontally
         y=y_center,  # Center vertically
         width=marker_size_in * 72,
-        height=marker_size_in * 72
+        height=marker_size_in * 72,
     )
     pdf.save()
 
+
 if __name__ == "__main__":
-    create_marker_pdf(aruco_id=100, marker_size_cm=18.5)
+    create_marker_pdf(aruco_id=102, marker_size_cm=18.5)
