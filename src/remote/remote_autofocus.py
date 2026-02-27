@@ -179,6 +179,15 @@ def find_lens_pos_bounds(
     return seq[0], seq[1]
 
 
+def try_encode_photo(photo: np.ndarray) -> typing.Tuple[bool, io.BytesIO | None]:
+    success, buffer = cv.imencode(".jpg", photo)
+    if not success:
+        return False, None
+    bytes = io.BytesIO(buffer.tobytes())
+    bytes.seek(0)
+    return bytes
+
+
 autofocus_blueprint = flask.Blueprint("autofocus", __name__)
 
 
@@ -191,12 +200,8 @@ def rate_lens_pos_route(lens_pos: float):
 
 @autofocus_blueprint.route("/autofocus")
 def autofocus_route():
-    lower, upper = find_lens_pos_bounds(
-        flask.current_app.picam, num_photos=5
-    )
-    ideal = find_ideal_lens_pos(
-        flask.current_app.picam, lower, upper, iterations=5
-    )
+    lower, upper = find_lens_pos_bounds(flask.current_app.picam, num_photos=5)
+    ideal = find_ideal_lens_pos(flask.current_app.picam, lower, upper, iterations=5)
     return flask.jsonify(
         {
             "lens_pos": ideal.lens_pos,
@@ -206,19 +211,26 @@ def autofocus_route():
 
 
 @autofocus_blueprint.route("/photo/<float:lens_pos>")
-def take_photo_route(lens_pos: float):
-    try:
-        photo = take_photo(flask.current_app.picam, lens_pos)
-        ret, buffer = cv.imencode(".jpg", photo)
-        if not ret:
-            flask.current_app.logger.error("Failed to encode photo.")
-            return flask.jsonify({"error": "Failed to encode photo"}), 500
-        photo_bytes = io.BytesIO(buffer.tobytes())
-        photo_bytes.seek(0)
-        return flask.send_file(photo_bytes, mimetype="image/jpeg")
-    except Exception as e:
-        flask.current_app.logger.error(f"Error in /photo endpoint: {e}")
-        return flask.jsonify({"error": str(e)}), 500
+def send_photo_route(lens_pos: float):
+    photo = take_photo(flask.current_app.picam, lens_pos)
+    success, bytes = try_encode_photo(photo)
+    if not success:
+        flask.current_app.logger.error("Failed to encode photo.")
+        return flask.jsonify({"error": "Failed to encode photo"}), 500
+    return flask.send_file(bytes, mimetype="image/jpeg")
+
+
+@autofocus_blueprint.route("/marker-photo/<float:lens_pos>")
+def send_marker_photo_route(lens_pos: float):
+    photo = take_photo(flask.current_app.picam, lens_pos)
+    marker = find_best_test_marker(photo)
+    if marker is not None:
+        photo = crop_out_marker(photo, marker)
+    success, bytes = try_encode_photo(photo)
+    if not success:
+        flask.current_app.logger.error("Failed to encode photo.")
+        return flask.jsonify({"error": "Failed to encode photo"}), 500
+    return flask.send_file(bytes, mimetype="image/jpeg")
 
 
 @autofocus_blueprint.route("/ping")
