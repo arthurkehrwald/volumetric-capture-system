@@ -6,7 +6,7 @@ from PIL import Image
 import math
 
 
-def generate_siemens_star(size_px):
+def generate_siemens_star(size_px, num_sectors):
     """
     Generate a Siemens star image with black and white circular sectors.
 
@@ -18,7 +18,6 @@ def generate_siemens_star(size_px):
     )  # Start with a white canvas
     center = size_px // 2
     radius = int(center * math.sqrt(2))  # Adjust radius to fill the marker
-    num_sectors = 48
 
     for i in range(num_sectors):
         start_angle = int(360 * i / num_sectors)
@@ -52,7 +51,9 @@ def generate_aruco_marker(dictionary, id, size_px):
     return marker
 
 
-def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
+def create_marker_pdf(
+    aruco_id, marker_size_cm, aruco_relative_size=0.6, num_siemens_sectors=100, dpi=300
+):
     """
     Create a PDF file containing the marker.
 
@@ -66,13 +67,12 @@ def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
     marker_size_px = int(marker_size_in * dpi)
 
     # Create the Siemens star
-    siemens_star = generate_siemens_star(marker_size_px)
+    siemens_star = generate_siemens_star(marker_size_px, num_siemens_sectors)
 
     # Create the ArUco markers
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
-    aruco_size_px = (
-        marker_size_px // 5
-    )  # ArUco markers are 1/5th the size of the marker
+    aruco_size_px = int(marker_size_px / 2 * aruco_relative_size)
+
     marker = generate_aruco_marker(aruco_dict, aruco_id, aruco_size_px)
     aruco_markers = [marker for i in range(4)]
 
@@ -170,4 +170,9 @@ def create_marker_pdf(aruco_id, marker_size_cm, dpi=300):
 
 
 if __name__ == "__main__":
-    create_marker_pdf(aruco_id=102, marker_size_cm=18.5)
+    create_marker_pdf(
+        aruco_id=100,
+        marker_size_cm=18.5,
+        aruco_relative_size=0.6,
+        num_siemens_sectors=100,
+    )
