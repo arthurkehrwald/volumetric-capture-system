@@ -352,13 +352,16 @@ class Autofocus:
                 async with asyncio.TaskGroup() as tg:
                     for cam in self.cameras:
                         tg.create_task(
-                            self.request_from_camera(
-                                session,
+                            self.handle_request_errors(
+                                lambda: self.request_from_camera(
+                                    session,
+                                    cam,
+                                    self.build_ping_url,
+                                    self.handle_ping_response,
+                                    timeout=1,
+                                ),
                                 cam,
-                                self.build_ping_url,
-                                self.handle_ping_response,
                                 "Ping",
-                                timeout=1,
                                 set_cam_message=False,
                             )
                         )
@@ -380,13 +383,18 @@ class Autofocus:
             async with asyncio.TaskGroup() as tg:
                 for cam in cams:
                     tg.create_task(
-                        self.request_from_camera(
-                            session,
+                        self.handle_request_errors(
+                            lambda: self.request_from_camera(
+                                session,
+                                cam,
+                                url_builder,
+                                response_handler,
+                                action_name,
+                                timeout,
+                                set_cam_message,
+                            ),
                             cam,
-                            url_builder,
-                            response_handler,
                             action_name,
-                            timeout,
                             set_cam_message,
                         )
                     )
@@ -399,18 +407,25 @@ class Autofocus:
         response_handler: typing.Callable[
             [aiohttp.ClientResponse, CamInfo], typing.Awaitable
         ],
-        action_name: str,
         timeout: float,
+    ):
+        endpoint = url_builder(cam)
+        async with session.get(endpoint, timeout=timeout) as response:
+            await response_handler(response, cam)
+
+    async def handle_request_errors(
+        self,
+        fn_request: typing.Callable,
+        cam: CamInfo,
+        action_name: str,
         set_cam_message: bool,
     ):
         if set_cam_message:
             with cam.lock:
                 cam.message = f"{action_name} in progress..."
-        endpoint = url_builder(cam)
         error_msg = None
         try:
-            async with session.get(endpoint, timeout=timeout) as response:
-                await response_handler(response, cam)
+            await fn_request()
         except TimeoutError:
             error_msg = f"{action_name} failed: No connection"
         except aiohttp.ClientConnectionError:
