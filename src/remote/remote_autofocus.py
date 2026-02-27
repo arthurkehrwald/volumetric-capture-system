@@ -185,7 +185,7 @@ def try_encode_photo(photo: np.ndarray) -> typing.Tuple[bool, io.BytesIO | None]
         return False, None
     bytes = io.BytesIO(buffer.tobytes())
     bytes.seek(0)
-    return bytes
+    return success, bytes
 
 
 autofocus_blueprint = flask.Blueprint("autofocus", __name__)
