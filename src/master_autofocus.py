@@ -1,3 +1,6 @@
+# TODO: Decorator for request error handling
+# TODO: Add thread safe get set in CamInfo
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -197,8 +200,8 @@ class Autofocus:
         )
         self.verify_selected_btn = ttk.Button(
             bottom_btns,
-            text="Verify Selected",
-            command=lambda: self.on_verify_selected_clicked(table),
+            text="Before / After",
+            command=lambda: self.on_before_after_clicked(table),
             state="disabled",
         )
         self.save_btn = ttk.Button(
@@ -310,17 +313,21 @@ class Autofocus:
             state="normal" if num_selected == 1 else "disabled"
         )
 
-    def on_verify_selected_clicked(self, table: ttk.Treeview):
+    def on_before_after_clicked(self, table: ttk.Treeview):
         """Callback when Verify button is clicked"""
         selected = self.get_selected_cams(table)
+        if not selected:
+            return
+        cam = selected[0]
+        with cam.lock:
+            if cam.prev_lens_pos < 0 or cam.lens_pos < 0:
+                return
         self.thread_pool.submit(
             lambda: asyncio.run(
-                self.request_from_cameras(
-                    selected,
-                    self.build_take_photo_url,
-                    self.handle_photo_response,
-                    "Photo",
-                    2,
+                self.handle_request_errors(
+                    lambda: self.request_before_after_pics(cam),
+                    cam,
+                    "Before / After",
                     True,
                 )
             )
@@ -412,6 +419,54 @@ class Autofocus:
         endpoint = url_builder(cam)
         async with session.get(endpoint, timeout=timeout) as response:
             await response_handler(response, cam)
+
+    async def request_before_after_pics(self, cam: CamInfo):
+        async with aiohttp.ClientSession() as session:
+            with cam.lock:
+                ip = cam.ip
+                before_pos = cam.prev_lens_pos
+                after_pos = cam.lens_pos
+            before_pic = await self.get_marker_photo(session, ip, before_pos)
+            after_pic = await self.get_marker_photo(session, ip, after_pos)
+            self.verify_selected_btn.after(
+                0, self.show_before_after_popup, before_pic, after_pic, cam
+            )
+
+    async def get_marker_photo(
+        self, session: aiohttp.ClientSession, ip: str, lens_pos: float
+    ) -> ImageTk.PhotoImage:
+        endpoint = self.get_endpoint(ip, "marker-photo", str(lens_pos))
+        async with session.get(endpoint, timeout=2.0) as response:
+            image_bytes = await response.read()
+        image = Image.open(io.BytesIO(image_bytes))
+        max_width, max_height = 780, 580
+        image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        photo_image = ImageTk.PhotoImage(image)
+        return photo_image
+
+    def show_before_after_popup(
+        self, before: ImageTk.PhotoImage, after: ImageTk.PhotoImage, cam: CamInfo
+    ):
+        popup = tk.Toplevel()
+        popup.title(f"Photo - {cam.name}")
+        popup.geometry("800x600")
+
+        notebook = ttk.Notebook(popup)
+        notebook.pack(fill=tk.BOTH, expand=True)
+
+        # Before tab
+        before_frame = tk.Frame(notebook)
+        before_label = tk.Label(before_frame, image=before)
+        before_label.image = before  # Prevent garbage collection
+        before_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        notebook.add(before_frame, text="Before")
+
+        # After tab
+        after_frame = tk.Frame(notebook)
+        after_label = tk.Label(after_frame, image=after)
+        after_label.image = after  # Prevent garbage collection
+        after_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        notebook.add(after_frame, text="After")
 
     async def handle_request_errors(
         self,
