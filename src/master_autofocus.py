@@ -228,7 +228,7 @@ class Autofocus:
         )
         self.compare_before_after_btn = ttk.Button(
             bottom_btns,
-            text="Before / After",
+            text="Compare Before/After Pictures",
             command=lambda: self.on_before_after_clicked(table),
             state="disabled",
         )
