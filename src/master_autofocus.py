@@ -42,6 +42,12 @@ class RemoteError(enum.Enum):
     NoMarkerFound = 1
     EncodeFail = 2
 
+
+class PhotoType(enum.Enum):
+    FullFrame = 0
+    MarkerCrop = 1
+
+
 def get_error_msg(error: RemoteError) -> str:
     if error == RemoteError.NoError:
         return "No error."
@@ -247,6 +253,12 @@ class Autofocus:
             command=lambda: self.on_before_after_clicked(table),
             state="disabled",
         )
+        self.show_photo_btn = ttk.Button(
+            bottom_btns,
+            text="Show Photo",
+            command=lambda: self.on_show_photo_btn_clicked(table),
+            state="disabled",
+        )
         self.save_btn = ttk.Button(
             bottom_btns, text="Save", command=self.on_save_clicked, state="disabled"
         )
@@ -259,6 +271,7 @@ class Autofocus:
         self.compare_before_after_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
+        self.show_photo_btn.pack(side="left", fill="both", expand=True, padx=padding)
         self.save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
 
         # Bind selection change event to update button states
@@ -351,6 +364,9 @@ class Autofocus:
         self.compare_before_after_btn.config(
             state="normal" if can_compare_before_after else "disabled"
         )
+        self.show_photo_btn.config(
+            state="normal" if len(selected_cams) == 1 else "disabled"
+        )
 
     def on_before_after_clicked(self, table: ttk.Treeview):
         """Callback when Verify button is clicked"""
@@ -362,6 +378,13 @@ class Autofocus:
             if cam.prev_lens_pos < 0 or cam.lens_pos < 0:
                 return
         self.thread_pool.submit(lambda: asyncio.run(self.compare_before_after(cam)))
+
+    def on_show_photo_btn_clicked(self, table: ttk.Treeview):
+        selected = self.get_selected_cams(table)
+        if not selected:
+            return
+        cam = selected[0]
+        self.thread_pool.submit(lambda: asyncio.run(self.take_photo(cam)))
 
     def on_save_clicked(self):
         self.write_all_lens_positions()
@@ -411,8 +434,12 @@ class Autofocus:
             before_pos = cam.prev_lens_pos
             after_pos = cam.lens_pos
         async with aiohttp.ClientSession() as session:
-            before_err, before_pic = await self.try_get_marker_photo(session, ip, before_pos)
-            after_err, after_pic = await self.try_get_marker_photo(session, ip, after_pos)
+            before_err, before_pic = await self.try_get_photo(
+                session, ip, PhotoType.MarkerCrop, before_pos, resize_to=(640, 640)
+            )
+            after_err, after_pic = await self.try_get_photo(
+                session, ip, PhotoType.MarkerCrop, after_pos, resize_to=(640, 640)
+            )
         if before_err != RemoteError.NoError or after_err != RemoteError.NoError:
             err = before_err if before_err != RemoteError.NoError else after_err
             with cam.lock:
@@ -424,10 +451,19 @@ class Autofocus:
             0, self.show_before_after_popup, before_pic, after_pic, cam
         )
 
-    async def try_get_marker_photo(
-        self, session: aiohttp.ClientSession, ip: str, lens_pos: float
+    async def try_get_photo(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        type: PhotoType,
+        lens_pos: float,
+        resize_to: typing.Tuple[int, int],
     ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage | None]:
-        endpoint = self.get_endpoint(ip, "marker-photo", str(lens_pos))
+        endpoint = self.get_endpoint(
+            ip,
+            "marker-photo" if type == PhotoType.MarkerCrop else "photo",
+            str(lens_pos),
+        )
         async with session.get(endpoint, timeout=2.0) as response:
             content_type = response.content_type
             if content_type and "image" in content_type:
@@ -439,7 +475,7 @@ class Autofocus:
                 return error, None
             else:
                 raise aiohttp.ContentTypeError()
-        image = image.resize((640, 640))
+        image = image.resize(resize_to)
         photo_image = ImageTk.PhotoImage(image)
         return RemoteError.NoError, photo_image
 
@@ -512,22 +548,28 @@ class Autofocus:
             cam.connected = ok
 
     @handle_request_errors("Take photo")
-    async def take_photo(self, cam: CamInfo, session: aiohttp.ClientSession):
+    async def take_photo(self, cam: CamInfo):
         """Display the photo in a tkinter popup window"""
-        endpoint = self.get_endpoint(cam.ip, "photo", str(0.5))
-        async with session.get(endpoint, timeout=3) as response:
-            image_bytes = await response.read()
-        image = Image.open(io.BytesIO(image_bytes))
-        max_width, max_height = 780, 580
-        image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-        photo_image = ImageTk.PhotoImage(image)
-        self.compare_before_after_btn.after(0, self.show_photo_popup, photo_image, cam)
+        with cam.lock:
+            ip = cam.ip
+            lens_pos = cam.lens_pos
+        async with aiohttp.ClientSession() as session:
+            error, pic = await self.try_get_photo(
+                session, ip, PhotoType.FullFrame, lens_pos, resize_to=(1280, 720)
+            )
+        if error != RemoteError.NoError:
+            with cam.lock:
+                cam.message = f"Photo failed: {get_error_msg(error)}"
+            return
+        with cam.lock:
+            cam.message = "Photo completed successfully."
+        self.show_photo_btn.after(0, self.show_photo_popup, pic, cam)
 
     def show_photo_popup(self, photo: ImageTk.PhotoImage, cam: CamInfo):
         # Create popup window
         popup = tk.Toplevel()
         popup.title(f"Photo - {cam.name}")
-        popup.geometry("800x600")
+        popup.geometry("1280x720")
         # Create label with image
         label = tk.Label(popup, image=photo)
         label.image = photo  # Keep a reference to prevent garbage collection
