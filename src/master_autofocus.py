@@ -38,15 +38,15 @@ class CamInfo:
 
 def handle_request_errors(action_name: str, set_cam_message: bool = True):
     def decorator[T, **P](
-        f: typing.Callable[P, typing.Awaitable[T]],
-    ) -> typing.Callable[P, typing.Awaitable[T]]:
-        async def inner(cam: CamInfo, *args: P.args, **kwargs: P.kwargs) -> T:
+        f: typing.Callable[typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]],
+    ) -> typing.Callable[typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]]:
+        async def inner(self: typing.Any, cam: CamInfo, *args: P.args, **kwargs: P.kwargs) -> T:
             if set_cam_message:
                 with cam.lock:
                     cam.message = f"{action_name} in progress..."
             error_msg = None
             try:
-                await f(*args, **kwargs)
+                return await f(self, cam, *args, **kwargs)
             except TimeoutError:
                 error_msg = f"{action_name} failed: No connection"
             except aiohttp.ClientConnectionError:
@@ -87,7 +87,9 @@ class Autofocus:
             self.thread_pool,
         )
         self.thread_pool.submit(
-            lambda: asyncio.run(self.request_from_cameras(self.cameras, delay=5))
+            lambda: asyncio.run(
+                self.request_from_cameras(self.cameras, self.rate_lens_pos, delay=5)
+            )
         )
 
     @staticmethod
