@@ -461,10 +461,11 @@ class Autofocus:
         lens_pos: float,
         resize_to: typing.Tuple[int, int],
     ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage | None]:
+        lens_pos_clamped = round(max(0, min(100, lens_pos)), 3)
         endpoint = self.get_endpoint(
             ip,
             "marker-photo" if type == PhotoType.MarkerCrop else "photo",
-            str(lens_pos),
+            str(lens_pos_clamped),
         )
         async with session.get(endpoint, timeout=2.0) as response:
             content_type = response.content_type
@@ -476,7 +477,7 @@ class Autofocus:
                 error = RemoteError(response_json["error_code"])
                 return error, None
             else:
-                raise aiohttp.ContentTypeError()
+                raise aiohttp.ContentTypeError(response.request_info, (response))
         image = image.resize(resize_to)
         photo_image = ImageTk.PhotoImage(image)
         return RemoteError.NoError, photo_image
