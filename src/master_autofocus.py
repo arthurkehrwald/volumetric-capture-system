@@ -341,7 +341,9 @@ class Autofocus:
 
     def on_focus_all_clicked(self, table: ttk.Treeview):
         """Callback when Focus All button is clicked"""
-        print("focus all clicked")
+        self.thread_pool.submit(
+            lambda: asyncio.run(self.request_from_cameras(self.cameras, self.autofocus))
+        )
 
     def on_focus_selected_clicked(self, table: ttk.Treeview):
         """Callback when Focus Selected button is clicked"""
