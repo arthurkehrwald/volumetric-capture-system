@@ -413,6 +413,11 @@ class Autofocus:
         async with aiohttp.ClientSession() as session:
             before_err, before_pic = await self.try_get_marker_photo(session, ip, before_pos)
             after_err, after_pic = await self.try_get_marker_photo(session, ip, after_pos)
+        if before_err != RemoteError.NoError or after_err != RemoteError.NoError:
+            err = before_err if before_err != RemoteError.NoError else after_err
+            with cam.lock:
+                cam.message = f"Before/after comparison failed: {get_error_msg(err)}"
+            return
         with cam.lock:
             cam.message = "Before/after comparison completed successfully"
         self.compare_before_after_btn.after(
@@ -421,11 +426,19 @@ class Autofocus:
 
     async def try_get_marker_photo(
         self, session: aiohttp.ClientSession, ip: str, lens_pos: float
-    ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage]:
+    ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage | None]:
         endpoint = self.get_endpoint(ip, "marker-photo", str(lens_pos))
         async with session.get(endpoint, timeout=2.0) as response:
-            image_bytes = await response.read()
-        image = Image.open(io.BytesIO(image_bytes))
+            content_type = response.content_type
+            if content_type and "image" in content_type:
+                image_bytes = await response.read()
+                image = Image.open(io.BytesIO(image_bytes))
+            elif content_type and "json" in content_type:
+                response_json = await response.json()
+                error = RemoteError(response_json["error_code"])
+                return error, None
+            else:
+                raise aiohttp.ContentTypeError()
         image = image.resize((640, 640))
         photo_image = ImageTk.PhotoImage(image)
         return RemoteError.NoError, photo_image
@@ -462,16 +475,17 @@ class Autofocus:
         lens_pos = response_json["lens_pos"]
         rating = response_json["rating"]
         error = RemoteError(response_json["error_code"])
-        with cam.lock:
-            if error == RemoteError.NoError:
+        if error == RemoteError.NoError:
+            with cam.lock:
                 cam.prev_rating = cam.focus_rating
                 cam.prev_lens_pos = cam.lens_pos
                 cam.focus_rating = rating
                 cam.lens_pos = lens_pos
                 cam.message = "Autofocus completed successfully."
-            else:
+            self.set_has_unsaved_changes(True)
+        else:
+            with cam.lock:
                 cam.message = f"Autofocus failed: {get_error_msg(error)}"
-        self.set_has_unsaved_changes(True)
 
     @handle_request_errors("Rate lens pos")
     async def rate_lens_pos(self, cam: CamInfo, session: aiohttp.ClientSession):
