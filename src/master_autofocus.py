@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import enum
 import math
 import threading
 import typing
@@ -34,6 +35,20 @@ class CamInfo:
     lens_pos: float
     prev_lens_pos: float
     message: str
+
+
+class RemoteError(enum.Enum):
+    NoError = 0
+    NoMarkerFound = 1
+    EncodeFail = 2
+
+def get_error_msg(error: RemoteError) -> str:
+    if error == RemoteError.NoError:
+        return "No error."
+    elif error == RemoteError.NoMarkerFound:
+        return "No marker found."
+    elif error == RemoteError.EncodeFail:
+        return "Failed to encode image."
 
 
 def handle_request_errors(action_name: str, set_cam_message: bool = True):
@@ -396,32 +411,31 @@ class Autofocus:
             before_pos = cam.prev_lens_pos
             after_pos = cam.lens_pos
         async with aiohttp.ClientSession() as session:
-            before_pic = await self.get_marker_photo(session, ip, before_pos)
-            after_pic = await self.get_marker_photo(session, ip, after_pos)
+            before_err, before_pic = await self.try_get_marker_photo(session, ip, before_pos)
+            after_err, after_pic = await self.try_get_marker_photo(session, ip, after_pos)
         with cam.lock:
             cam.message = "Before/after comparison completed successfully"
         self.compare_before_after_btn.after(
             0, self.show_before_after_popup, before_pic, after_pic, cam
         )
 
-    async def get_marker_photo(
+    async def try_get_marker_photo(
         self, session: aiohttp.ClientSession, ip: str, lens_pos: float
-    ) -> ImageTk.PhotoImage:
+    ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage]:
         endpoint = self.get_endpoint(ip, "marker-photo", str(lens_pos))
         async with session.get(endpoint, timeout=2.0) as response:
             image_bytes = await response.read()
         image = Image.open(io.BytesIO(image_bytes))
-        max_width, max_height = 780, 580
-        image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        image = image.resize((640, 640))
         photo_image = ImageTk.PhotoImage(image)
-        return photo_image
+        return RemoteError.NoError, photo_image
 
     def show_before_after_popup(
         self, before: ImageTk.PhotoImage, after: ImageTk.PhotoImage, cam: CamInfo
     ):
         popup = tk.Toplevel()
         popup.title(f"Photo - {cam.name}")
-        popup.geometry("800x600")
+        popup.geometry("800x800")
 
         notebook = ttk.Notebook(popup)
         notebook.pack(fill=tk.BOTH, expand=True)
@@ -447,16 +461,16 @@ class Autofocus:
             response_json = await response.json()
         lens_pos = response_json["lens_pos"]
         rating = response_json["rating"]
+        error = RemoteError(response_json["error_code"])
         with cam.lock:
-            cam.prev_rating = cam.focus_rating
-            cam.prev_lens_pos = cam.lens_pos
-            cam.focus_rating = rating
-            cam.lens_pos = lens_pos
-            cam.message = (
-                "Autofocus completed successfully."
-                if rating != 0
-                else "Autofocus failed: No markers recognized"
-            )
+            if error == RemoteError.NoError:
+                cam.prev_rating = cam.focus_rating
+                cam.prev_lens_pos = cam.lens_pos
+                cam.focus_rating = rating
+                cam.lens_pos = lens_pos
+                cam.message = "Autofocus completed successfully."
+            else:
+                cam.message = f"Autofocus failed: {get_error_msg(error)}"
         self.set_has_unsaved_changes(True)
 
     @handle_request_errors("Rate lens pos")
@@ -465,12 +479,13 @@ class Autofocus:
         async with session.get(endpoint, timeout=3) as response:
             response_json = await response.json()
         rating = response_json["rating"]
+        error = RemoteError(response_json["error_code"])
         with cam.lock:
             cam.focus_rating = rating
             cam.message = (
                 "Focus rating completed successfully."
-                if rating != 0
-                else "Focus rating failed: No markers recognized"
+                if error == RemoteError.NoError
+                else f"Focus rating failed: {get_error_msg(error)}"
             )
 
     @handle_request_errors("Ping", False)
@@ -478,7 +493,7 @@ class Autofocus:
         endpoint = self.get_endpoint(cam.ip, "ping")
         async with session.get(endpoint, timeout=1) as response:
             response_json = await response.json()
-        ok = response_json["status"] == "ok"
+        ok = RemoteError(response_json["error_code"]) == RemoteError.NoError
         with cam.lock:
             cam.connected = ok
 

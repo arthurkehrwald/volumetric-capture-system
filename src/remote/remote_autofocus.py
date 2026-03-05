@@ -19,6 +19,13 @@ import numpy as np
 import typing
 import cv2 as cv
 from libcamera import controls
+import enum
+
+
+class Error(enum.Enum):
+    NoError = 0
+    NoMarkerFound = 1
+    EncodeFail = 2
 
 
 class Point(typing.NamedTuple):
@@ -195,7 +202,14 @@ autofocus_blueprint = flask.Blueprint("autofocus", __name__)
 def rate_lens_pos_route(lens_pos: float):
     photo = take_photo(flask.current_app.picam, lens_pos)
     rating = rate_focus(photo)
-    return flask.jsonify({"rating": rating})
+    return flask.jsonify(
+        {
+            "rating": rating,
+            "error_code": (
+                Error.NoError.value if rating > 0 else Error.NoMarkerFound.value
+            ),
+        }
+    )
 
 
 @autofocus_blueprint.route("/autofocus")
@@ -206,6 +220,9 @@ def autofocus_route():
         {
             "lens_pos": ideal.lens_pos,
             "rating": ideal.rating,
+            "error_code": (
+                Error.NoError.value if ideal.rating > 0 else Error.NoMarkerFound.value
+            ),
         }
     )
 
@@ -216,7 +233,7 @@ def send_photo_route(lens_pos: float):
     success, bytes = try_encode_photo(photo)
     if not success:
         flask.current_app.logger.error("Failed to encode photo.")
-        return flask.jsonify({"error": "Failed to encode photo"}), 500
+        return flask.jsonify({"error_code": Error.EncodeFail.value}), 500
     return flask.send_file(bytes, mimetype="image/jpeg")
 
 
@@ -224,15 +241,16 @@ def send_photo_route(lens_pos: float):
 def send_marker_photo_route(lens_pos: float):
     photo = take_photo(flask.current_app.picam, lens_pos)
     marker = find_best_test_marker(photo)
-    if marker is not None:
-        photo = crop_out_marker(photo, marker)
+    if marker is None:
+        return flask.jsonify({"error_code": Error.NoMarkerFound.value}), 500
+    photo = crop_out_marker(photo, marker)
     success, bytes = try_encode_photo(photo)
     if not success:
         flask.current_app.logger.error("Failed to encode photo.")
-        return flask.jsonify({"error": "Failed to encode photo"}), 500
+        return flask.jsonify({"error_code": Error.EncodeFail.value}), 500
     return flask.send_file(bytes, mimetype="image/jpeg")
 
 
 @autofocus_blueprint.route("/ping")
 def ping_route():
-    return flask.jsonify({"status": "ok"})
+    return flask.jsonify({"error_code": Error.NoError.value})
