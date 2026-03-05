@@ -38,9 +38,15 @@ class CamInfo:
 
 def handle_request_errors(action_name: str, set_cam_message: bool = True):
     def decorator[T, **P](
-        f: typing.Callable[typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]],
-    ) -> typing.Callable[typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]]:
-        async def inner(self: typing.Any, cam: CamInfo, *args: P.args, **kwargs: P.kwargs) -> T:
+        f: typing.Callable[
+            typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]
+        ],
+    ) -> typing.Callable[
+        typing.Concatenate[typing.Any, CamInfo, P], typing.Awaitable[T]
+    ]:
+        async def inner(
+            self: typing.Any, cam: CamInfo, *args: P.args, **kwargs: P.kwargs
+        ) -> T:
             if set_cam_message:
                 with cam.lock:
                     cam.message = f"{action_name} in progress..."
@@ -220,7 +226,7 @@ class Autofocus:
             command=lambda: self.on_focus_selected_clicked(table),
             state="disabled",
         )
-        self.verify_selected_btn = ttk.Button(
+        self.compare_before_after_btn = ttk.Button(
             bottom_btns,
             text="Before / After",
             command=lambda: self.on_before_after_clicked(table),
@@ -235,7 +241,7 @@ class Autofocus:
         self.focus_selected_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
-        self.verify_selected_btn.pack(
+        self.compare_before_after_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
         self.save_btn.pack(side="left", fill="both", expand=True, padx=(padding, 0))
@@ -317,13 +323,18 @@ class Autofocus:
         )
 
     def on_table_selection(self, table: ttk.Treeview):
-        """Enable or disable Focus Selected and Verify Selected buttons based on table selection."""
-        num_selected = len(table.selection())
+        """Enable or disable buttons based on table selection."""
+        selected_cams = self.get_selected_cams(table)
         self.focus_selected_btn.config(
-            state="normal" if num_selected > 0 else "disabled"
+            state="normal" if len(selected_cams) > 0 else "disabled"
         )
-        self.verify_selected_btn.config(
-            state="normal" if num_selected == 1 else "disabled"
+        can_compare_before_after = (
+            len(selected_cams) == 1
+            and selected_cams[0].prev_lens_pos > 0
+            and selected_cams[0].lens_pos > 0
+        )
+        self.compare_before_after_btn.config(
+            state="normal" if can_compare_before_after else "disabled"
         )
 
     def on_before_after_clicked(self, table: ttk.Treeview):
@@ -380,16 +391,18 @@ class Autofocus:
 
     @handle_request_errors("Before/after photos")
     async def compare_before_after(self, cam: CamInfo):
+        with cam.lock:
+            ip = cam.ip
+            before_pos = cam.prev_lens_pos
+            after_pos = cam.lens_pos
         async with aiohttp.ClientSession() as session:
-            with cam.lock:
-                ip = cam.ip
-                before_pos = cam.prev_lens_pos
-                after_pos = cam.lens_pos
             before_pic = await self.get_marker_photo(session, ip, before_pos)
             after_pic = await self.get_marker_photo(session, ip, after_pos)
-            self.verify_selected_btn.after(
-                0, self.show_before_after_popup, before_pic, after_pic, cam
-            )
+        with cam.lock:
+            cam.message = "Before/after comparison completed successfully"
+        self.compare_before_after_btn.after(
+            0, self.show_before_after_popup, before_pic, after_pic, cam
+        )
 
     async def get_marker_photo(
         self, session: aiohttp.ClientSession, ip: str, lens_pos: float
@@ -479,7 +492,7 @@ class Autofocus:
         max_width, max_height = 780, 580
         image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
         photo_image = ImageTk.PhotoImage(image)
-        self.verify_selected_btn.after(0, self.show_photo_popup, photo_image, cam)
+        self.compare_before_after_btn.after(0, self.show_photo_popup, photo_image, cam)
 
     def show_photo_popup(self, photo: ImageTk.PhotoImage, cam: CamInfo):
         # Create popup window
