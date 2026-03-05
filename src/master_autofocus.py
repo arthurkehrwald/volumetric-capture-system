@@ -306,7 +306,10 @@ class Autofocus:
         return display_value
 
     def get_star_rating(self, rating: int) -> int:
-        return math.ceil(rating / float(FOCUS_RATING_FOR_MAX_SCORE) * MAX_NUM_STARS)
+        return min(
+            MAX_NUM_STARS,
+            math.ceil(rating / float(FOCUS_RATING_FOR_MAX_SCORE) * MAX_NUM_STARS),
+        )
 
     def get_fg_tag(self, rating: int, is_connected: bool) -> str:
         if not is_connected:
