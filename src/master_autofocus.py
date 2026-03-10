@@ -210,6 +210,7 @@ class Autofocus:
         )
         for col in columns:
             table.heading(col, text=col)
+        table.column(2, width=400)
         table.column(5, anchor="e")
         table.column(6, anchor="e")
         table.tag_configure(BLACK_FG_TAG, foreground="#000000")
