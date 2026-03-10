@@ -7,7 +7,7 @@ and cropped out. The sharpness is rated using the Laplacian variance of that
 cropped image. The optimization process consists of two stages. First, an upper
 and lower bound for the lens position is established by identifying the two
 sharpest pictures in a focus sequence of five pictures with a focal distance
-between 50cm and infinity. Second, A binary search between the the two
+between 50cm and infinity. Second, A binary search between the two
 corresponding lens positions (hopefully) converges to the optimum.
 """
 
