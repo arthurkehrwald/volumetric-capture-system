@@ -38,6 +38,11 @@ class MarkerDetection(typing.NamedTuple):
     corners: typing.List[Point]
 
 
+class Photo(typing.NamedTuple):
+    img: np.ndarray
+    lens_pos: float
+
+
 def find_aruco_markers(img: np.ndarray) -> typing.List[MarkerDetection]:
     dictionary = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_4X4_250)
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -142,18 +147,9 @@ class FocusRating(typing.NamedTuple):
         )
 
 
-def rate_focus(photo: np.ndarray) -> int:
-    marker = find_best_test_marker(photo)
-    if marker is not None:
-        crop = crop_out_marker(photo, marker)
-        rating = rate_marker_sharpness(crop)
-    else:
-        rating = 0
-    return rating
-
-
 def find_ideal_lens_pos(
     running_picam: Picamera2,
+    marker: MarkerDetection,
     lower_bound: FocusRating,
     upper_bound: FocusRating,
     iterations: int,
@@ -161,7 +157,8 @@ def find_ideal_lens_pos(
     for _ in range(iterations):
         mid_lens_pos = (lower_bound.lens_pos + upper_bound.lens_pos) / 2
         photo = take_photo(running_picam, mid_lens_pos)
-        mid_rating = rate_focus(photo)
+        crop = crop_out_marker(photo, marker)
+        mid_rating = rate_marker_sharpness(crop)
         mid = FocusRating(mid_lens_pos, mid_rating)
 
         if lower_bound.rating > upper_bound.rating:
@@ -172,16 +169,37 @@ def find_ideal_lens_pos(
     return mid
 
 
+def lerp(min: float, max: float, t: float) -> float:
+    return min + (max - min) * t
+
+
+def take_focus_series(
+    running_picam: Picamera2, num_photos: int, min_lens_pos: float, max_lens_pos: float
+) -> typing.List[Photo]:
+    photos = []
+    for i in range(num_photos):
+        lens_pos = lerp(min_lens_pos, max_lens_pos, i / (num_photos - 1))
+        img = take_photo(running_picam, lens_pos)
+        photos.append(Photo(img, lens_pos))
+    return photos
+
+
+def find_marker_in_multiple_photos(photos: typing.List[np.ndarray]) -> MarkerDetection:
+    for photo in photos:
+        marker = find_best_test_marker(photo)
+        if marker is not None:
+            return marker
+    return None
+
+
 def find_lens_pos_bounds(
-    running_picam: Picamera2, num_photos: int
+    photos: typing.List[Photo], marker: MarkerDetection
 ) -> typing.Tuple[FocusRating, FocusRating]:
     seq = []
-    for i in range(num_photos):
-        MAX_LENS_POS = 2  # 50cm focus dist
-        lens_pos = MAX_LENS_POS * i / (num_photos - 1)
-        photo = take_photo(running_picam, lens_pos)
-        rating = rate_focus(photo)
-        seq.append(FocusRating(lens_pos, rating))
+    for photo in photos:
+        crop = crop_out_marker(photo, marker)
+        rating = rate_marker_sharpness(crop)
+        seq.append(FocusRating(photo.lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
     return seq[0], seq[1]
 
@@ -201,28 +219,47 @@ autofocus_blueprint = flask.Blueprint("autofocus", __name__)
 @autofocus_blueprint.route("/rate-lens-pos/<float:lens_pos>")
 def rate_lens_pos_route(lens_pos: float):
     photo = take_photo(flask.current_app.picam, lens_pos)
-    rating = rate_focus(photo)
+    marker = find_best_test_marker(photo)
+    if marker is None:
+        return flask.jsonify(
+            {
+                "rating": 0,
+                "error_code": Error.NoMarkerFound.value,
+            }
+        )
+    crop = crop_out_marker(photo, marker)
+    rating = rate_marker_sharpness(crop)
     return flask.jsonify(
         {
             "rating": rating,
-            "error_code": (
-                Error.NoError.value if rating > 0 else Error.NoMarkerFound.value
-            ),
+            "error_code": Error.NoError.value,
         }
     )
 
 
 @autofocus_blueprint.route("/autofocus")
 def autofocus_route():
-    lower, upper = find_lens_pos_bounds(flask.current_app.picam, num_photos=5)
-    ideal = find_ideal_lens_pos(flask.current_app.picam, lower, upper, iterations=5)
+    focus_series = take_focus_series(
+        flask.current_app.picam, num_photos=5, min_lens_pos=0, max_lens_pos=2
+    )
+    marker = find_marker_in_multiple_photos(focus_series)
+    if marker is None:
+        return flask.jsonify(
+            {
+                "lens_pos": 0,
+                "rating": 0,
+                "error_code": Error.NoMarkerFound.value,
+            }
+        )
+    lower, upper = find_lens_pos_bounds(focus_series, marker)
+    ideal = find_ideal_lens_pos(
+        flask.current_app.picam, marker, lower, upper, iterations=5
+    )
     return flask.jsonify(
         {
             "lens_pos": ideal.lens_pos,
             "rating": ideal.rating,
-            "error_code": (
-                Error.NoError.value if ideal.rating > 0 else Error.NoMarkerFound.value
-            ),
+            "error_code": Error.NoError.value,
         }
     )
 
@@ -239,10 +276,15 @@ def send_photo_route(lens_pos: float):
 
 @autofocus_blueprint.route("/marker-photo/<float:lens_pos>")
 def send_marker_photo_route(lens_pos: float):
-    photo = take_photo(flask.current_app.picam, lens_pos)
-    marker = find_best_test_marker(photo)
+    # The marker might not be recognizable with the given lens pos.
+    # Find its image coordinates using a focus series first
+    focus_series = take_focus_series(
+        flask.current_app.picam, num_photos=5, min_lens_pos=0, max_lens_pos=2
+    )
+    marker = find_marker_in_multiple_photos(focus_series)
     if marker is None:
         return flask.jsonify({"error_code": Error.NoMarkerFound.value}), 500
+    photo = take_photo(flask.current_app.picam, lens_pos)
     photo = crop_out_marker(photo, marker)
     success, bytes = try_encode_photo(photo)
     if not success:
