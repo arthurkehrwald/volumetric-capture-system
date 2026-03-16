@@ -189,7 +189,7 @@ def find_lens_pos_bounds(
 ) -> typing.Tuple[FocusRating, FocusRating]:
     seq: list[FocusRating] = []
     for photo in photos:
-        crop = crop_out_marker(photo, marker)
+        crop = crop_out_marker(photo.img, marker)
         rating = rate_marker_sharpness(crop)
         seq.append(FocusRating(photo.lens_pos, rating))
     seq.sort(key=lambda x: x.rating, reverse=True)
