@@ -108,14 +108,6 @@ def rate_marker_sharpness(marker_img: np.ndarray) -> int:
     return sharpness
 
 
-def rate_image_focus(img: np.ndarray) -> int:
-    marker = find_best_test_marker(img)
-    if marker is None:
-        return 0
-    crop = crop_out_marker(img, marker)
-    return rate_marker_sharpness(crop)
-
-
 def wait_for_lens_pos(lens_pos: float, running_picam: Picamera2, timeout: float):
     start_time = time.time()
     while start_time - time.time() < timeout:
@@ -242,7 +234,7 @@ def autofocus_route():
     focus_series = take_focus_series(
         flask.current_app.picam, num_photos=5, min_lens_pos=0, max_lens_pos=2
     )
-    marker = find_marker_in_multiple_photos(focus_series)
+    marker = find_marker_in_multiple_photos([photo.img for photo in focus_series])
     if marker is None:
         return flask.jsonify(
             {
@@ -281,7 +273,7 @@ def send_marker_photo_route(lens_pos: float):
     focus_series = take_focus_series(
         flask.current_app.picam, num_photos=5, min_lens_pos=0, max_lens_pos=2
     )
-    marker = find_marker_in_multiple_photos(focus_series)
+    marker = find_marker_in_multiple_photos([photo.img for photo in focus_series])
     if marker is None:
         return flask.jsonify({"error_code": Error.NoMarkerFound.value}), 500
     photo = take_photo(flask.current_app.picam, lens_pos)
