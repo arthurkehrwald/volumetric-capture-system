@@ -210,8 +210,11 @@ autofocus_blueprint = flask.Blueprint("autofocus", __name__)
 
 @autofocus_blueprint.route("/rate-lens-pos/<float:lens_pos>")
 def rate_lens_pos_route(lens_pos: float):
+    focus_series = take_focus_series(
+        flask.current_app.picam, num_photos=5, min_lens_pos=0, max_lens_pos=2
+    )
+    marker = find_marker_in_multiple_photos([photo.img for photo in focus_series])
     photo = take_photo(flask.current_app.picam, lens_pos)
-    marker = find_best_test_marker(photo)
     if marker is None:
         return flask.jsonify(
             {
