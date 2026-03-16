@@ -248,6 +248,12 @@ class Autofocus:
             command=lambda: self.on_focus_selected_clicked(table),
             state="disabled",
         )
+        self.rate_lens_pos_btn = ttk.Button(
+            bottom_btns,
+            text="Rate current lens pos",
+            command=lambda: self.on_rate_lens_pos_clicked(table),
+            state="disabled",
+        )
         self.compare_before_after_btn = ttk.Button(
             bottom_btns,
             text="Compare Before/After Pictures",
@@ -267,6 +273,9 @@ class Autofocus:
         padding = 4
         focus_all_btn.pack(side="left", fill="both", expand=True, padx=(0, padding))
         self.focus_selected_btn.pack(
+            side="left", fill="both", expand=True, padx=padding
+        )
+        self.rate_lens_pos_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
         self.compare_before_after_btn.pack(
@@ -362,6 +371,9 @@ class Autofocus:
         self.focus_selected_btn.config(
             state="normal" if len(selected_cams) > 0 else "disabled"
         )
+        self.rate_lens_pos_btn.config(
+            state="normal" if len(selected_cams) > 0 else "disabled"
+        )
         can_compare_before_after = (
             len(selected_cams) == 1
             and selected_cams[0].prev_lens_pos > 0
@@ -384,6 +396,12 @@ class Autofocus:
             if cam.prev_lens_pos < 0 or cam.lens_pos < 0:
                 return
         self.thread_pool.submit(lambda: asyncio.run(self.compare_before_after(cam)))
+
+    def on_rate_lens_pos_clicked(self, table: ttk.Treeview):
+        selected = self.get_selected_cams(table)
+        self.thread_pool.submit(
+            lambda: asyncio.run(self.request_from_cameras(selected, self.rate_lens_pos))
+        )
 
     def on_show_photo_btn_clicked(self, table: ttk.Treeview):
         selected = self.get_selected_cams(table)
