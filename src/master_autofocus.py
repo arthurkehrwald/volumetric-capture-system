@@ -489,7 +489,7 @@ class Autofocus:
             "marker-photo" if type == PhotoType.MarkerCrop else "photo",
             self.lens_pos_to_url_param(lens_pos),
         )
-        async with session.get(endpoint, timeout=2.0) as response:
+        async with session.get(endpoint, timeout=4.0) as response:
             content_type = response.content_type
             if content_type and "image" in content_type:
                 image_bytes = await response.read()
