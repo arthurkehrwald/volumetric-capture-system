@@ -2,92 +2,92 @@
     {
         "name": "CAM00",
         "ip": "10.50.100.100",
-        "lens_position": 0.0002
+        "lens_position": 0.109375
     },
     {
         "name": "CAM01",
         "ip": "10.50.100.101",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM02",
         "ip": "10.50.100.102",
-        "lens_position": 0.0002
+        "lens_position": 0.109375
     },
     {
         "name": "CAM03",
         "ip": "10.50.100.103",
-        "lens_position": 0.05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM04",
         "ip": "10.50.100.104",
-        "lens_position": 0.2
+        "lens_position": 0.421875
     },
     {
         "name": "CAM05",
         "ip": "10.50.100.105",
-        "lens_position": 0.2
+        "lens_position": 0.328125
     },
     {
         "name": "CAM06",
         "ip": "10.50.100.106",
-        "lens_position": 0.1
+        "lens_position": 0.453125
     },
     {
         "name": "CAM07",
         "ip": "10.50.100.107",
-        "lens_position": 0.05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM08",
         "ip": "10.50.100.108",
-        "lens_position": 0.0002
+        "lens_position": 0.109375
     },
     {
         "name": "CAM09",
         "ip": "10.50.100.109",
-        "lens_position": 1e-05
+        "lens_position": 0.109375
     },
     {
         "name": "CAM10",
         "ip": "10.50.100.110",
-        "lens_position": 5e-06
+        "lens_position": 0.390625
     },
     {
         "name": "CAM11",
         "ip": "10.50.100.111",
-        "lens_position": 1e-05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM12",
         "ip": "10.50.100.112",
-        "lens_position": 0.025
+        "lens_position": 0.390625
     },
     {
         "name": "CAM13",
         "ip": "10.50.100.113",
-        "lens_position": 0.025
+        "lens_position": 0.109375
     },
     {
         "name": "CAM14",
         "ip": "10.50.100.114",
-        "lens_position": 0.05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM15",
         "ip": "10.50.100.115",
-        "lens_position": 0.025
+        "lens_position": 0.015625
     },
     {
         "name": "CAM16",
         "ip": "10.50.100.116",
-        "lens_position": 0.109375
+        "lens_position": 0.578125
     },
     {
         "name": "CAM17",
         "ip": "10.50.100.117",
-        "lens_position": 0.2
+        "lens_position": 0.84375
     },
     {
         "name": "CAM18",
@@ -97,32 +97,32 @@
     {
         "name": "CAM19",
         "ip": "10.50.100.119",
-        "lens_position": 0.2
+        "lens_position": 0.515625
     },
     {
         "name": "CAM20",
         "ip": "10.50.100.120",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM21",
         "ip": "10.50.100.121",
-        "lens_position": 0.2
+        "lens_position": 0.921875
     },
     {
         "name": "CAM22",
         "ip": "10.50.100.122",
-        "lens_position": 0.1
+        "lens_position": 0.515625
     },
     {
         "name": "CAM23",
         "ip": "10.50.100.123",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM24",
         "ip": "10.50.100.124",
-        "lens_position": 0.05
+        "lens_position": 0.78125
     },
     {
         "name": "CAM25",
@@ -132,32 +132,32 @@
     {
         "name": "CAM26",
         "ip": "10.50.100.126",
-        "lens_position": 0.4
+        "lens_position": 0.921875
     },
     {
         "name": "CAM27",
         "ip": "10.50.100.127",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM28",
         "ip": "10.50.100.128",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM29",
         "ip": "10.50.100.129",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM30",
         "ip": "10.50.100.130",
-        "lens_position": 0.05
+        "lens_position": 0.578125
     },
     {
         "name": "CAM31",
         "ip": "10.50.100.131",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM32",
@@ -167,176 +167,176 @@
     {
         "name": "CAM33",
         "ip": "10.50.100.133",
-        "lens_position": 0.4
+        "lens_position": 0.921875
     },
     {
         "name": "CAM34",
         "ip": "10.50.100.134",
-        "lens_position": 0.1
+        "lens_position": 0.890625
     },
     {
         "name": "CAM35",
         "ip": "10.50.100.135",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM36",
         "ip": "10.50.100.136",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM37",
         "ip": "10.50.100.137",
-        "lens_position": 0.05
+        "lens_position": 0.515625
     },
     {
         "name": "CAM38",
         "ip": "10.50.100.138",
-        "lens_position": 0.025
+        "lens_position": 0.578125
     },
     {
         "name": "CAM39",
         "ip": "10.50.100.139",
-        "lens_position": 0.1
+        "lens_position": 0.609375
     },
     {
         "name": "CAM40",
         "ip": "10.50.100.140",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM41",
         "ip": "10.50.100.141",
-        "lens_position": 0.05
+        "lens_position": 0.609375
     },
     {
         "name": "CAM42",
         "ip": "10.50.100.142",
-        "lens_position": 0.1
+        "lens_position": 0.515625
     },
     {
         "name": "CAM43",
         "ip": "10.50.100.143",
-        "lens_position": 0.2
+        "lens_position": 0.515625
     },
     {
         "name": "CAM44",
         "ip": "10.50.100.144",
-        "lens_position": 0.2
+        "lens_position": 0.609375
     },
     {
         "name": "CAM45",
         "ip": "10.50.100.145",
-        "lens_position": 0.2
+        "lens_position": 0.515625
     },
     {
         "name": "CAM46",
         "ip": "10.50.100.146",
-        "lens_position": 0.2
+        "lens_position": 0.515625
     },
     {
         "name": "CAM47",
         "ip": "10.50.100.147",
-        "lens_position": 0.4
+        "lens_position": 0.515625
     },
     {
         "name": "CAM48",
         "ip": "10.50.100.148",
-        "lens_position": 0.025
+        "lens_position": 0.109375
     },
     {
         "name": "CAM49",
         "ip": "10.50.100.149",
-        "lens_position": 1e-05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM50",
         "ip": "10.50.100.150",
-        "lens_position": 0.0001
+        "lens_position": 0.109375
     },
     {
         "name": "CAM51",
         "ip": "10.50.100.151",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM52",
         "ip": "10.50.100.152",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM53",
         "ip": "10.50.100.153",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM54",
         "ip": "10.50.100.154",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM55",
         "ip": "10.50.100.155",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM56",
         "ip": "10.50.100.156",
-        "lens_position": 1e-06
+        "lens_position": 0.109375
     },
     {
         "name": "CAM57",
         "ip": "10.50.100.157",
-        "lens_position": 1e-06
+        "lens_position": 0.078125
     },
     {
         "name": "CAM58",
         "ip": "10.50.100.158",
-        "lens_position": 1e-06
+        "lens_position": 0.109375
     },
     {
         "name": "CAM59",
         "ip": "10.50.100.159",
-        "lens_position": 1e-06
+        "lens_position": 0.390625
     },
     {
         "name": "CAM60",
         "ip": "10.50.100.160",
-        "lens_position": 1e-05
+        "lens_position": 0.390625
     },
     {
         "name": "CAM61",
         "ip": "10.50.100.161",
-        "lens_position": 1e-06
+        "lens_position": 0.109375
     },
     {
         "name": "CAM62",
         "ip": "10.50.100.162",
-        "lens_position": 1e-13
+        "lens_position": 0.078125
     },
     {
         "name": "CAM63",
         "ip": "10.50.100.163",
-        "lens_position": 1e-06
+        "lens_position": 0.109375
     },
     {
         "name": "CAM64",
         "ip": "10.50.100.164",
-        "lens_position": 1.4
+        "lens_position": 1.703125
     },
     {
         "name": "CAM65",
         "ip": "10.50.100.165",
-        "lens_position": 1.2
+        "lens_position": 1.421875
     },
     {
         "name": "CAM66",
         "ip": "10.50.100.166",
-        "lens_position": 1.2
+        "lens_position": 1.515625
     },
     {
         "name": "CAM67",
         "ip": "10.50.100.167",
-        "lens_position": 1.4
+        "lens_position": 1.484375
     }
 ]
