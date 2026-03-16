@@ -195,7 +195,7 @@ def find_marker_in_multiple_photos(photos: typing.List[np.ndarray]) -> MarkerDet
 def find_lens_pos_bounds(
     photos: typing.List[Photo], marker: MarkerDetection
 ) -> typing.Tuple[FocusRating, FocusRating]:
-    seq = []
+    seq: list[FocusRating] = []
     for photo in photos:
         crop = crop_out_marker(photo, marker)
         rating = rate_marker_sharpness(crop)
