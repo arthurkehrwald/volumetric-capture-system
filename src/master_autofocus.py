@@ -275,9 +275,7 @@ class Autofocus:
         self.focus_selected_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
-        self.rate_lens_pos_btn.pack(
-            side="left", fill="both", expand=True, padx=padding
-        )
+        self.rate_lens_pos_btn.pack(side="left", fill="both", expand=True, padx=padding)
         self.compare_before_after_btn.pack(
             side="left", fill="both", expand=True, padx=padding
         )
@@ -424,6 +422,9 @@ class Autofocus:
         selected_ips = [table.item(item)["values"][0] for item in selected_items]
         return [cam for cam in self.cameras if cam.name in selected_ips]
 
+    def lens_pos_to_url_param(self, lens_pos: float) -> str:
+        return str(round(max(0, min(100, lens_pos)), 3))
+
     def get_endpoint(
         self, ip: str, route: str, variable: typing.Optional[str] = None
     ) -> str:
@@ -483,11 +484,10 @@ class Autofocus:
         lens_pos: float,
         resize_to: typing.Tuple[int, int],
     ) -> typing.Tuple[RemoteError, ImageTk.PhotoImage | None]:
-        lens_pos_clamped = round(max(0, min(100, lens_pos)), 3)
         endpoint = self.get_endpoint(
             ip,
             "marker-photo" if type == PhotoType.MarkerCrop else "photo",
-            str(lens_pos_clamped),
+            self.lens_pos_to_url_param(lens_pos),
         )
         async with session.get(endpoint, timeout=2.0) as response:
             content_type = response.content_type
@@ -550,7 +550,9 @@ class Autofocus:
 
     @handle_request_errors("Rate lens pos")
     async def rate_lens_pos(self, cam: CamInfo, session: aiohttp.ClientSession):
-        endpoint = self.get_endpoint(cam.ip, "rate-lens-pos", str(cam.lens_pos))
+        endpoint = self.get_endpoint(
+            cam.ip, "rate-lens-pos", self.lens_pos_to_url_param(cam.lens_pos)
+        )
         async with session.get(endpoint, timeout=3) as response:
             response_json = await response.json()
         rating = response_json["rating"]
