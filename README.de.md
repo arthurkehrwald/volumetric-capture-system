@@ -96,6 +96,10 @@ Die Skripte auf der Remote-Seite befinden sich in `src/remote/` und werden über
 
 ---
 
+## Dieser Fork
+
+Siehe englisches Readme.
+
 ## 🧰 Allgemeine Hilfsprogramme
 
 Diese Tools befinden sich in `src/utils/` und unterstützen Einrichtung und Fernsteuerung:
