@@ -14,7 +14,7 @@ import datetime
 
 from picamera2 import Picamera2, Preview
 from picamera2.encoders import H264Encoder
-from utilscamera import controls as libcontrols
+from libcamera import controls as libcontrols
 
 EVENT_LOG = 'event_log.txt'
 STORAGE_PATH = 'Recordings'
@@ -76,7 +76,7 @@ default_settings = {
     "auto_exposure": False,
     "flicker_control": "Off",
     "flicker_period": 50,
-    "white_balance": "Daylight",
+    "white_balance": "Indoor",
     "red_gain": 1.1,
     "blue_gain": 2.5,
     "af_mode": "manual",
